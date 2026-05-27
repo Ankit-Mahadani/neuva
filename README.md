@@ -2,14 +2,14 @@
 
 <br/>
 
-```
+<pre align="center">
  ███╗   ██╗███████╗██╗   ██╗██╗   ██╗ █████╗
  ████╗  ██║██╔════╝██║   ██║██║   ██║██╔══██╗
  ██╔██╗ ██║█████╗  ██║   ██║██║   ██║███████║
  ██║╚██╗██║██╔══╝  ██║   ██║╚██╗ ██╔╝██╔══██║
  ██║ ╚████║███████╗╚██████╔╝ ╚████╔╝ ██║  ██║
  ╚═╝  ╚═══╝╚══════╝ ╚═════╝   ╚═══╝  ╚═╝  ╚═╝
-```
+</pre>
 
 **A programming language built purely for Machine Learning.**
 
@@ -17,7 +17,7 @@
 
 <br/>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-7C3AED.svg?style=flat-square)](LICENSE)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-7C3AED.svg?style=flat-square)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10+-3B82F6.svg?style=flat-square)](https://python.org)
 [![PyTorch Backend](https://img.shields.io/badge/Backend-PyTorch-EF4444.svg?style=flat-square)](https://pytorch.org)
 [![Status: Building](https://img.shields.io/badge/Status-Building%20in%20Public-10B981.svg?style=flat-square)]()
@@ -106,7 +106,7 @@ Same result. A fraction of the code.
 - **Rust-style errors** — clear error messages with line numbers and helpful hints
 - **Simple types** — `tensor`, `matrix`, `int`, `float`, `bool`, `string`
 - **Beginner friendly** — if you know any programming language, you can write Neuva
-- **Open source** — MIT licensed, built in public, contributions welcome
+- **Open source** — AGPL v3 licensed, built in public, contributions welcome
 
 ---
 
@@ -265,7 +265,7 @@ pytest tests/
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide.
 
-Look for issues labelled `good first issue` to get started quickly.
+Look for issues labelled `good first issue` to get started quickly: [github.com/Ankit-Mahadani/neuva/issues](https://github.com/Ankit-Mahadani/neuva/issues)
 
 ---
 
@@ -293,7 +293,18 @@ Look for issues labelled `good first issue` to get started quickly.
 
 ## License
 
-MIT © 2026 Neuva Contributors
+This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**.
+
+This means:
+- You can use, study, modify, and distribute Neuva freely
+- If you use Neuva in a product or service (including over a network), you **must** release your source code under the same license
+- Any modifications must also be open source
+
+This keeps Neuva and everything built on top of it free and open — forever.
+
+See the full [LICENSE](LICENSE) file for details, or read a plain-English summary at [tldrlegal.com/license/gnu-affero-general-public-license-v3](https://tldrlegal.com/license/gnu-affero-general-public-license-v3).
+
+Copyright © 2026 Ankit Mahadani and Neuva Contributors
 
 ---
 
