@@ -1,6 +1,6 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
-build-backend = "setuptools.backends.legacy:build"
+requires = ["setuptools>=61,<75", "wheel"]
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "neuva-lang"
@@ -12,7 +12,6 @@ requires-python = ">=3.10"
 keywords = ["machine-learning", "programming-language", "neural-network"]
 classifiers = [
     "Development Status :: 1 - Planning",
-    "License :: OSI Approved :: GNU Affero General Public License v3",
     "Programming Language :: Python :: 3.10",
 ]
 
