@@ -32,9 +32,9 @@ train_stmt: "train" NAME "on" expr train_options?
 
 train_options: "with" train_option ("," train_option)*
 
-train_option: "lr" "=" expr
-            | "loss" "=" expr
-            | "epochs" "=" expr
+train_option: "lr" "=" expr     -> train_opt_lr
+            | "loss" "=" expr   -> train_opt_loss
+            | "epochs" "=" expr -> train_opt_epochs
 
 // Save statement
 save_stmt: "save" NAME "to" expr
@@ -53,13 +53,16 @@ param: NAME ":" type
 return_stmt: "return" expr?
 
 // If / else statement
-if_stmt: "if" expr "{" NEWLINE statement* "}" (NEWLINE? "else" "{" NEWLINE statement* "}")? NEWLINE
+if_stmt: "if" expr if_body ("else" if_body)? NEWLINE
+if_body: "{" NEWLINE statement* "}"
 
 // For loop
-for_stmt: "for" NAME "in" expr "{" NEWLINE statement* "}" NEWLINE
+for_stmt: "for" NAME "in" expr for_body NEWLINE
+for_body: "{" NEWLINE statement* "}"
 
 // While loop
-while_stmt: "while" expr "{" NEWLINE statement* "}" NEWLINE
+while_stmt: "while" expr while_body NEWLINE
+while_body: "{" NEWLINE statement* "}"
 
 // Expression statement (standalone call or assignment)
 expr_stmt: expr
@@ -67,14 +70,13 @@ expr_stmt: expr
 // Expressions
 ?expr: comparison
 
-?comparison: sum (comp_op sum)*
-
-?comp_op: "==" -> eq
-        | "!=" -> ne
-        | "<"  -> lt
-        | "<=" -> le
-        | ">"  -> gt
-        | ">=" -> ge
+?comparison: sum
+           | sum "==" sum -> eq
+           | sum "!=" sum -> ne
+           | sum "<"  sum -> lt
+           | sum "<=" sum -> le
+           | sum ">"  sum -> gt
+           | sum ">=" sum -> ge
 
 ?sum: product (("+"|"-") product)*
 

@@ -1,5 +1,6 @@
 import os
 from lark import Lark, UnexpectedInput
+from .transformer import NeuvaTransformer
 
 _GRAMMAR_PATH = os.path.join(os.path.dirname(__file__), "grammar.lark")
 
@@ -23,11 +24,13 @@ class NeuvaParser:
             propagate_positions=True,
             ambiguity="resolve",
         )
+        self._transformer = NeuvaTransformer()
 
     def parse(self, source: str):
         source = source.rstrip() + "\n"
         try:
-            return self._parser.parse(source)
+            tree = self._parser.parse(source)
+            return self._transformer.transform(tree)
         except UnexpectedInput as exc:
             raise ParseError(str(exc), getattr(exc, "line", None), getattr(exc, "column", None)) from exc
 
