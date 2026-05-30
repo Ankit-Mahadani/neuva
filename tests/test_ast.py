@@ -1,9 +1,5 @@
-import sys
-import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-
-from parser import NeuvaParser
-from parser.ast_nodes import (
+from neuva.parser import NeuvaParser
+from neuva.parser.ast_nodes import (
     Program, LetStatement, PrintStatement, ModelStatement,
     TrainStatement, FnStatement, IfStatement,
 )

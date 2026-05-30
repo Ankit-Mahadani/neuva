@@ -1,0 +1,129 @@
+// Neuva Language Grammar
+
+start: statement*
+
+statement: print_stmt NEWLINE
+         | let_stmt NEWLINE
+         | model_def
+         | train_stmt NEWLINE
+         | save_stmt NEWLINE
+         | predict_stmt NEWLINE
+         | func_def
+         | return_stmt NEWLINE
+         | if_stmt
+         | for_stmt
+         | while_stmt
+         | expr_stmt NEWLINE
+         | NEWLINE
+
+// Print statement
+print_stmt: "print" expr ("," expr)*
+
+// Variable declaration
+let_stmt: "let" NAME "=" expr
+        | "let" NAME ":" type "=" expr
+
+// Model definition
+model_def: "model" NAME "{" NEWLINE layer_stmt* "}"  NEWLINE
+
+layer_stmt: "layer" NAME "(" arg_list? ")" NEWLINE
+
+// Train statement
+train_stmt: "train" NAME "on" expr train_options?
+
+train_options: "with" train_option ("," train_option)*
+
+train_option: "lr" "=" expr     -> train_opt_lr
+            | "loss" "=" expr   -> train_opt_loss
+            | "epochs" "=" expr -> train_opt_epochs
+
+// Save statement
+save_stmt: "save" NAME "to" expr
+
+// Predict statement
+predict_stmt: "predict" NAME "(" expr ")"
+
+// Function definition
+func_def: "fn" NAME "(" param_list? ")" ("->" type)? "{" NEWLINE statement* "}" NEWLINE
+
+param_list: param ("," param)*
+
+param: NAME ":" type
+
+// Return statement
+return_stmt: "return" expr?
+
+// If / else statement
+if_stmt: "if" expr if_body ("else" if_body)? NEWLINE
+if_body: "{" NEWLINE statement* "}"
+
+// For loop
+for_stmt: "for" NAME "in" expr for_body NEWLINE
+for_body: "{" NEWLINE statement* "}"
+
+// While loop
+while_stmt: "while" expr while_body NEWLINE
+while_body: "{" NEWLINE statement* "}"
+
+// Expression statement (standalone call or assignment)
+expr_stmt: expr
+
+// Expressions
+?expr: comparison
+
+?comparison: sum
+           | sum "==" sum -> eq
+           | sum "!=" sum -> ne
+           | sum "<"  sum -> lt
+           | sum "<=" sum -> le
+           | sum ">"  sum -> gt
+           | sum ">=" sum -> ge
+
+?sum: product
+    | sum "+" product -> add
+    | sum "-" product -> sub
+
+?product: unary
+        | product "*" unary -> mul
+        | product "/" unary -> div
+        | product "%" unary -> mod
+
+?unary: "-" unary -> neg
+      | "!" unary -> not_
+      | call_or_attr
+
+?call_or_attr: call_or_attr "(" arg_list? ")" -> func_call
+             | call_or_attr "." NAME "(" arg_list? ")" -> method_call
+             | call_or_attr "." NAME -> attr_access
+             | primary
+
+?primary: "(" expr ")"
+        | literal
+        | NAME -> var
+
+arg_list: expr ("," expr)*
+
+// Literals
+literal: INT    -> int_lit
+       | FLOAT  -> float_lit
+       | STRING -> string_lit
+       | BOOL   -> bool_lit
+
+// Types
+type: "int"    -> type_int
+    | "float"  -> type_float
+    | "bool"   -> type_bool
+    | "string" -> type_string
+    | "tensor" -> type_tensor
+    | "matrix" -> type_matrix
+
+// Terminals
+BOOL: "true" | "false"
+STRING: "\"" /[^"\\]*/ "\""
+INT: /[0-9]+/
+FLOAT: /[0-9]+\.[0-9]*/
+NAME: /[a-zA-Z_][a-zA-Z0-9_]*/
+NEWLINE: /\n/
+
+%ignore /\#[^\n]*/
+%ignore /[ \t\r]+/

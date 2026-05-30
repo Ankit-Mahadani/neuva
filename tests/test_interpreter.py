@@ -1,9 +1,5 @@
-import sys
-import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-
-from parser import NeuvaParser
-from interpreter.interpreter import NeuvaInterpreter
+from neuva.parser import NeuvaParser
+from neuva.interpreter.interpreter import NeuvaInterpreter
 
 
 def _run(source: str) -> NeuvaInterpreter:

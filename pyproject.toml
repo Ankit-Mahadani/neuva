@@ -17,13 +17,14 @@ classifiers = [
 ]
 
 [project.scripts]
-neuva = "src.cli:main"
+neuva = "neuva.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/Ankit-Mahadani/neuva"
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["."]
+include = ["neuva*"]
 
 [tool.setuptools.package-data]
-"*" = ["*.lark"]
+"neuva" = ["parser/*.lark"]

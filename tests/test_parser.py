@@ -1,8 +1,4 @@
-import sys
-import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-
-from parser import NeuvaParser
+from neuva.parser import NeuvaParser
 
 
 def test_print_statement():

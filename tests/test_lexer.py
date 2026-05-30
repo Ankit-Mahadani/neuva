@@ -1,7 +1,5 @@
-import sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from src.lexer import Lexer
-from src.lexer.token import TokenType
+from neuva.lexer import Lexer
+from neuva.lexer.token import TokenType
 
 def tok(code): return Lexer(code).tokenize()
 def types(code): return [t.type for t in tok(code) if t.type not in (TokenType.NEWLINE, TokenType.EOF)]
