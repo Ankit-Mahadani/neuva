@@ -78,9 +78,14 @@ expr_stmt: expr
            | sum ">"  sum -> gt
            | sum ">=" sum -> ge
 
-?sum: product (("+"|"-") product)*
+?sum: product
+    | sum "+" product -> add
+    | sum "-" product -> sub
 
-?product: unary (("*"|"/"|"%") unary)*
+?product: unary
+        | product "*" unary -> mul
+        | product "/" unary -> div
+        | product "%" unary -> mod
 
 ?unary: "-" unary -> neg
       | "!" unary -> not_

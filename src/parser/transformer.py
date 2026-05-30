@@ -121,6 +121,11 @@ class NeuvaTransformer(Transformer):
 
     # ── expressions ────────────────────────────────────────────────────────
 
+    def add(self, items): return BinaryExpr(op="+",  left=items[0], right=items[1])
+    def sub(self, items): return BinaryExpr(op="-",  left=items[0], right=items[1])
+    def mul(self, items): return BinaryExpr(op="*",  left=items[0], right=items[1])
+    def div(self, items): return BinaryExpr(op="/",  left=items[0], right=items[1])
+    def mod(self, items): return BinaryExpr(op="%",  left=items[0], right=items[1])
     def eq(self, items):  return BinaryExpr(op="==", left=items[0], right=items[1])
     def ne(self, items):  return BinaryExpr(op="!=", left=items[0], right=items[1])
     def lt(self, items):  return BinaryExpr(op="<",  left=items[0], right=items[1])
