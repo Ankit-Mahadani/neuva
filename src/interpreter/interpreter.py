@@ -99,8 +99,7 @@ class NeuvaInterpreter:
         self.env.set(node.name, value)
 
     def visit_PrintStatement(self, node: PrintStatement) -> None:
-        value = self.evaluate(node.expr)
-        print(value)
+        print(*[self.evaluate(e) for e in node.exprs])
 
     def visit_ExprStatement(self, node: ExprStatement) -> Any:
         return self.evaluate(node.expr)

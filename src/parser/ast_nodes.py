@@ -62,7 +62,7 @@ class LetStatement(Node):
 
 @dataclass
 class PrintStatement(Node):
-    expr: Any = None
+    exprs: List[Any] = field(default_factory=list)
 
 
 @dataclass

@@ -14,9 +14,10 @@ statement: print_stmt NEWLINE
          | for_stmt
          | while_stmt
          | expr_stmt NEWLINE
+         | NEWLINE
 
 // Print statement
-print_stmt: "print" "(" expr ")"
+print_stmt: "print" expr ("," expr)*
 
 // Variable declaration
 let_stmt: "let" NAME "=" expr
@@ -122,9 +123,7 @@ STRING: "\"" /[^"\\]*/ "\""
 INT: /[0-9]+/
 FLOAT: /[0-9]+\.[0-9]*/
 NAME: /[a-zA-Z_][a-zA-Z0-9_]*/
-NEWLINE: /\r?\n[\t ]*/
-COMMENT: /#[^\n]*/
+NEWLINE: /\n/
 
-%ignore " "
-%ignore "\t"
-%ignore COMMENT
+%ignore /\#[^\n]*/
+%ignore /[ \t\r]+/

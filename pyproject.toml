@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "neuva-lang"
-version = "0.0.1"
-description = "Neuva — A programming language built for Machine Learning"
+version = "0.1.0"
+description = "Neuva — A working ML programming language with lexer, parser, AST and interpreter"
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.10"
@@ -15,6 +15,9 @@ classifiers = [
     "Development Status :: 1 - Planning",
     "Programming Language :: Python :: 3.10",
 ]
+
+[project.scripts]
+neuva = "src.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/Ankit-Mahadani/neuva"

@@ -29,7 +29,7 @@ class NeuvaTransformer(Transformer):
     # ── statements ─────────────────────────────────────────────────────────
 
     def print_stmt(self, items):
-        return PrintStatement(expr=items[0])
+        return PrintStatement(exprs=list(items))
 
     def let_stmt(self, items):
         if len(items) == 2:
