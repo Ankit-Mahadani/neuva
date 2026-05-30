@@ -2,8 +2,25 @@ from typing import Any, Optional
 from parser.ast_nodes import (
     Program, LetStatement, PrintStatement, ExprStatement,
     NumberLiteral, FloatLiteral, StringLiteral, BoolLiteral,
-    VarExpr, BinaryExpr,
+    VarExpr, BinaryExpr, CallExpr,
+    IfStatement, ForStatement, WhileStatement, FnStatement, ReturnStatement,
 )
+
+
+class ReturnSignal(Exception):
+    def __init__(self, value: Any):
+        self.value = value
+
+
+class NeuvaFunction:
+    def __init__(self, name: str, params: list, body: list, closure: "Environment"):
+        self.name = name
+        self.params = params
+        self.body = body
+        self.closure = closure
+
+    def __repr__(self) -> str:
+        return f"<fn {self.name}>"
 
 
 class RuntimeError_(Exception):
@@ -35,6 +52,7 @@ _OPS = {
     "-":  lambda a, b: a - b,
     "*":  lambda a, b: a * b,
     "/":  lambda a, b: a / b,
+    "%":  lambda a, b: a % b,
     "==": lambda a, b: a == b,
     "!=": lambda a, b: a != b,
     ">":  lambda a, b: a > b,
@@ -47,6 +65,7 @@ _OPS = {
 class NeuvaInterpreter:
     def __init__(self):
         self.env = Environment()
+        self.env.set("range", range)
 
     # ── dispatch ───────────────────────────────────────────────────────────
 
@@ -85,6 +104,35 @@ class NeuvaInterpreter:
 
     def visit_ExprStatement(self, node: ExprStatement) -> Any:
         return self.evaluate(node.expr)
+
+    def visit_IfStatement(self, node: IfStatement) -> None:
+        branch = node.then_body if self.evaluate(node.condition) else node.else_body
+        for stmt in branch:
+            self.visit(stmt)
+
+    def visit_ForStatement(self, node: ForStatement) -> None:
+        iterable = self.evaluate(node.iterable)
+        for val in iterable:
+            self.env.set(node.var, val)
+            for stmt in node.body:
+                self.visit(stmt)
+
+    def visit_WhileStatement(self, node: WhileStatement) -> None:
+        while self.evaluate(node.condition):
+            for stmt in node.body:
+                self.visit(stmt)
+
+    def visit_FnStatement(self, node: FnStatement) -> None:
+        self.env.set(node.name, NeuvaFunction(
+            name=node.name,
+            params=node.params,
+            body=node.body,
+            closure=self.env,
+        ))
+
+    def visit_ReturnStatement(self, node: ReturnStatement) -> None:
+        value = self.evaluate(node.value) if node.value is not None else None
+        raise ReturnSignal(value)
 
     # ── expression evaluators ──────────────────────────────────────────────
 
@@ -129,3 +177,37 @@ class NeuvaInterpreter:
             )
 
         return fn(left, right)
+
+    def eval_CallExpr(self, node: CallExpr) -> Any:
+        callee = self.evaluate(node.callee)
+        args = [self.evaluate(a) for a in node.args]
+
+        if callable(callee):
+            return callee(*args)
+
+        if isinstance(callee, NeuvaFunction):
+            if len(args) != len(callee.params):
+                raise RuntimeError_(
+                    f"'{callee.name}' expects {len(callee.params)} args, got {len(args)}",
+                    getattr(node, "line", None),
+                    getattr(node, "col", None),
+                )
+            local_env = Environment(parent=callee.closure)
+            for param, val in zip(callee.params, args):
+                local_env.set(param.name, val)
+            saved = self.env
+            self.env = local_env
+            try:
+                for stmt in callee.body:
+                    self.visit(stmt)
+                return None
+            except ReturnSignal as sig:
+                return sig.value
+            finally:
+                self.env = saved
+
+        raise RuntimeError_(
+            f"'{callee}' is not callable",
+            getattr(node, "line", None),
+            getattr(node, "col", None),
+        )
