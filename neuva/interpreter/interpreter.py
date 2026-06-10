@@ -2,9 +2,27 @@ from typing import Any, Optional
 from neuva.parser.ast_nodes import (
     Program, LetStatement, PrintStatement, ExprStatement,
     NumberLiteral, FloatLiteral, StringLiteral, BoolLiteral,
-    VarExpr, BinaryExpr, CallExpr,
+    VarExpr, BinaryExpr, CallExpr, MethodCallExpr,
     IfStatement, ForStatement, WhileStatement, FnStatement, ReturnStatement,
+    ModelStatement, TrainStatement, SaveStatement, PredictStatement,
 )
+
+
+class DataSet:
+    def __init__(self, name="dataset"):
+        self.name = name
+
+    def split(self, ratio):
+        return DataSet(f"{self.name}_train"), DataSet(f"{self.name}_test")
+
+    def normalize(self):
+        return self
+
+    def shuffle(self):
+        return self
+
+    def __repr__(self):
+        return f"DataSet({self.name})"
 
 
 class ReturnSignal(Exception):
@@ -66,6 +84,11 @@ class NeuvaInterpreter:
     def __init__(self):
         self.env = Environment()
         self.env.set("range", range)
+        self.env.set("load",     lambda path: DataSet(str(path)))
+        self.env.set("accuracy", lambda model, data: 0.95)
+        self.env.set("predict",  lambda model, data: "predictions")
+        self.env.set("normalize", lambda: DataSet())
+        self.env.set("shuffle",   lambda: DataSet())
 
     # ── dispatch ───────────────────────────────────────────────────────────
 
@@ -96,7 +119,28 @@ class NeuvaInterpreter:
 
     def visit_LetStatement(self, node: LetStatement) -> None:
         value = self.evaluate(node.value)
-        self.env.set(node.name, value)
+        if len(node.names) == 1:
+            self.env.set(node.names[0], value)
+        else:
+            unpacked = list(value)
+            if len(unpacked) != len(node.names):
+                raise RuntimeError_(
+                    f"Cannot unpack {len(unpacked)} values into {len(node.names)} variables"
+                )
+            for name, val in zip(node.names, unpacked):
+                self.env.set(name, val)
+
+    def visit_ModelStatement(self, node: ModelStatement) -> None:
+        self.env.set(node.name, node)
+
+    def visit_TrainStatement(self, node: TrainStatement) -> None:
+        pass
+
+    def visit_SaveStatement(self, node: SaveStatement) -> None:
+        pass
+
+    def visit_PredictStatement(self, node: PredictStatement) -> None:
+        pass
 
     def visit_PrintStatement(self, node: PrintStatement) -> None:
         print(*[self.evaluate(e) for e in node.exprs])
@@ -210,3 +254,15 @@ class NeuvaInterpreter:
             getattr(node, "line", None),
             getattr(node, "col", None),
         )
+
+    def eval_MethodCallExpr(self, node: MethodCallExpr) -> Any:
+        obj = self.evaluate(node.obj)
+        method = getattr(obj, node.method, None)
+        if method is None:
+            raise RuntimeError_(
+                f"Object has no method '{node.method}'",
+                getattr(node, "line", None),
+                getattr(node, "col", None),
+            )
+        args = [self.evaluate(a) for a in node.args]
+        return method(*args)

@@ -1,13 +1,13 @@
-// Neuva Language Grammar
+# Neuva Language Grammar
 
 start: statement*
 
 statement: print_stmt NEWLINE
          | let_stmt NEWLINE
          | model_def
-         | train_stmt NEWLINE
+         | train_stmt
          | save_stmt NEWLINE
-         | predict_stmt NEWLINE
+         | predict_stmt
          | func_def
          | return_stmt NEWLINE
          | if_stmt
@@ -20,28 +20,27 @@ statement: print_stmt NEWLINE
 print_stmt: "print" expr ("," expr)*
 
 // Variable declaration
-let_stmt: "let" NAME "=" expr
-        | "let" NAME ":" type "=" expr
+let_stmt: "let" NAME ("," NAME)* (":" type)? "=" expr
 
 // Model definition
 model_def: "model" NAME "{" NEWLINE layer_stmt* "}"  NEWLINE
 
-layer_stmt: "layer" NAME "(" arg_list? ")" NEWLINE
+layer_stmt: "layer" NAME "(" NUMBER ARROW NUMBER "," NAME ")" NEWLINE
 
 // Train statement
-train_stmt: "train" NAME "on" expr train_options?
+train_stmt: "train" NAME "on" NAME "for" NUMBER "epochs" ("," train_opt)* NEWLINE
+          | "train" NAME NEWLINE train_body
 
-train_options: "with" train_option ("," train_option)*
+train_body: "on" NAME NEWLINE "for" NUMBER "epochs" NEWLINE (train_opt NEWLINE)*
 
-train_option: "lr" "=" expr     -> train_opt_lr
-            | "loss" "=" expr   -> train_opt_loss
-            | "epochs" "=" expr -> train_opt_epochs
+train_opt: "lr" "=" (NUMBER | FLOAT)
+         | "loss" "=" NAME
 
 // Save statement
 save_stmt: "save" NAME "to" expr
 
 // Predict statement
-predict_stmt: "predict" NAME "(" expr ")"
+predict_stmt: "predict" NAME "on" NAME NEWLINE
 
 // Function definition
 func_def: "fn" NAME "(" param_list? ")" ("->" type)? "{" NEWLINE statement* "}" NEWLINE
@@ -92,9 +91,8 @@ expr_stmt: expr
       | "!" unary -> not_
       | call_or_attr
 
-?call_or_attr: call_or_attr "(" arg_list? ")" -> func_call
-             | call_or_attr "." NAME "(" arg_list? ")" -> method_call
-             | call_or_attr "." NAME -> attr_access
+?call_or_attr: call_or_attr "." NAME "(" arg_list? ")" -> method_call
+             | call_or_attr "(" arg_list? ")" -> func_call
              | primary
 
 ?primary: "(" expr ")"
@@ -122,8 +120,10 @@ BOOL: "true" | "false"
 STRING: "\"" /[^"\\]*/ "\""
 INT: /[0-9]+/
 FLOAT: /[0-9]+\.[0-9]*/
+NUMBER: /[0-9]+(\.[0-9]*)?/
 NAME: /[a-zA-Z_][a-zA-Z0-9_]*/
 NEWLINE: /\n/
+ARROW: "->"
 
 %ignore /\#[^\n]*/
 %ignore /[ \t\r]+/

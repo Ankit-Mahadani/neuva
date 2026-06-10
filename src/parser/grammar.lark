@@ -20,8 +20,7 @@ statement: print_stmt NEWLINE
 print_stmt: "print" expr ("," expr)*
 
 // Variable declaration
-let_stmt: "let" NAME "=" expr
-        | "let" NAME ":" type "=" expr
+let_stmt: "let" NAME ("," NAME)* (":" type)? "=" expr
 
 // Model definition
 model_def: "model" NAME "{" NEWLINE layer_stmt* "}"  NEWLINE

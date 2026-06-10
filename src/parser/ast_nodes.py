@@ -55,7 +55,7 @@ class MethodCallExpr(Node):
 
 @dataclass
 class LetStatement(Node):
-    name: str = ""
+    names: List[str] = field(default_factory=list)
     type_ann: Optional[str] = None
     value: Any = None
 

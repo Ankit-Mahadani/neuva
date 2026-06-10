@@ -12,15 +12,15 @@ def test_let_statement():
     assert len(result.body) == 1
     node = result.body[0]
     assert isinstance(node, LetStatement)
-    assert node.name == "x"
+    assert node.names == ["x"]
 
 
 def test_model_with_layers():
     parser = NeuvaParser()
     src = (
         "model MyNet {\n"
-        "    layer dense(128)\n"
-        "    layer dropout(0.5)\n"
+        "    layer dense(784 -> 128, relu)\n"
+        "    layer dropout(128 -> 64, tanh)\n"
         "}\n"
     )
     result = parser.parse(src)
@@ -35,11 +35,12 @@ def test_model_with_layers():
 
 def test_train_statement():
     parser = NeuvaParser()
-    result = parser.parse("train MyNet on data with lr = 0.01, loss = crossentropy")
+    result = parser.parse("train MyNet on data for 10 epochs, lr = 0.01, loss = crossentropy")
     assert isinstance(result, Program)
     node = result.body[0]
     assert isinstance(node, TrainStatement)
     assert node.model == "MyNet"
+    assert node.epochs == 10
     assert len(node.options) == 2
     assert node.options[0].key == "lr"
     assert node.options[1].key == "loss"

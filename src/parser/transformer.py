@@ -32,10 +32,11 @@ class NeuvaTransformer(Transformer):
         return PrintStatement(exprs=list(items))
 
     def let_stmt(self, items):
-        if len(items) == 2:
-            return LetStatement(name=str(items[0]), value=items[1])
-        # typed: name, type, value
-        return LetStatement(name=str(items[0]), type_ann=items[1], value=items[2])
+        names = [str(i) for i in items if isinstance(i, Token)]
+        rest = [i for i in items if not isinstance(i, Token)]
+        if len(rest) == 1:
+            return LetStatement(names=names, value=rest[0])
+        return LetStatement(names=names, type_ann=rest[0], value=rest[1])
 
     def model_def(self, items):
         name = str(items[0])

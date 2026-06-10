@@ -96,7 +96,16 @@ class NeuvaInterpreter:
 
     def visit_LetStatement(self, node: LetStatement) -> None:
         value = self.evaluate(node.value)
-        self.env.set(node.name, value)
+        if len(node.names) == 1:
+            self.env.set(node.names[0], value)
+        else:
+            unpacked = list(value)
+            if len(unpacked) != len(node.names):
+                raise RuntimeError_(
+                    f"Cannot unpack {len(unpacked)} values into {len(node.names)} variables"
+                )
+            for name, val in zip(node.names, unpacked):
+                self.env.set(name, val)
 
     def visit_PrintStatement(self, node: PrintStatement) -> None:
         print(*[self.evaluate(e) for e in node.exprs])

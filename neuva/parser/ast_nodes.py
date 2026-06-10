@@ -55,7 +55,7 @@ class MethodCallExpr(Node):
 
 @dataclass
 class LetStatement(Node):
-    name: str = ""
+    names: List[str] = field(default_factory=list)
     type_ann: Optional[str] = None
     value: Any = None
 
@@ -86,7 +86,8 @@ class TrainOption(Node):
 @dataclass
 class TrainStatement(Node):
     model: str = ""
-    data: Any = None
+    data: str = ""
+    epochs: Any = None
     options: List[TrainOption] = field(default_factory=list)
 
 
@@ -99,7 +100,7 @@ class SaveStatement(Node):
 @dataclass
 class PredictStatement(Node):
     model: str = ""
-    input: Any = None
+    data: str = ""
 
 
 @dataclass

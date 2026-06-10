@@ -23,8 +23,8 @@ def test_model_with_layers():
     parser = NeuvaParser()
     src = (
         "model MyNet {\n"
-        "    layer dense(128)\n"
-        "    layer dropout(0.5)\n"
+        "    layer dense(784 -> 128, relu)\n"
+        "    layer dropout(128 -> 64, tanh)\n"
         "}\n"
     )
     tree = parser.parse(src)
@@ -33,7 +33,7 @@ def test_model_with_layers():
 
 def test_train_statement():
     parser = NeuvaParser()
-    tree = parser.parse("train MyNet on data with lr = 0.01, loss = crossentropy")
+    tree = parser.parse("train MyNet on data for 10 epochs, lr = 0.01, loss = crossentropy")
     assert tree is not None
 
 
