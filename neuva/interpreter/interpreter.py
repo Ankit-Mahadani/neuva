@@ -1,4 +1,5 @@
 from typing import Any, Optional
+from neuva.backend.torch_backend import NeuvaModel, NeuvaTrainer, NeuvaDataset
 from neuva.parser.ast_nodes import (
     Program, LetStatement, PrintStatement, ExprStatement,
     NumberLiteral, FloatLiteral, StringLiteral, BoolLiteral,
@@ -134,7 +135,22 @@ class NeuvaInterpreter:
         self.env.set(node.name, node)
 
     def visit_TrainStatement(self, node: TrainStatement) -> None:
-        pass
+        model_node = self.env.get(node.model)
+        data_obj = self.env.get(node.data)
+
+        lr = 0.001
+        loss_fn = "mse"
+        for opt in node.options:
+            if opt.key == "lr":
+                lr = float(opt.value)
+            elif opt.key == "loss":
+                loss_fn = str(opt.value)
+
+        in_size = model_node.layers[0].args[0] if model_node.layers else 1
+        neuva_model = NeuvaModel(model_node.layers)
+        dataset = NeuvaDataset(data_obj, in_size=in_size)
+        NeuvaTrainer().train(neuva_model, dataset, node.epochs, lr=lr, loss_fn=loss_fn)
+        self.env.set(node.model, neuva_model)
 
     def visit_SaveStatement(self, node: SaveStatement) -> None:
         pass
