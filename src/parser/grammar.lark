@@ -1,4 +1,4 @@
-// Neuva Language Grammar
+# Neuva Language Grammar
 
 start: statement*
 
