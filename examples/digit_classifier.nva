@@ -1,11 +1,10 @@
-# Digit Classifier — MNIST
-let data = load("mnist.csv")
+# Digit Classifier — sample data (4 features, 3 classes)
+let data = load("examples/data/sample.csv")
 let train_data, test_data = data.split(0.8)
 
 model DigitNet {
-    layer dense(784 -> 128, relu)
-    layer dense(128 -> 64,  relu)
-    layer dense(64  -> 10,  softmax)
+    layer dense(4 -> 16, relu)
+    layer dense(16 -> 3, softmax)
 }
 
 train DigitNet
@@ -16,4 +15,4 @@ train DigitNet
 
 let acc = accuracy(DigitNet, test_data)
 print "Test accuracy:", acc
-save DigitNet to "digit_model.nva"
+save DigitNet to "digit_model.nva" 
