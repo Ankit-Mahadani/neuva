@@ -1,0 +1,68 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Neuva",
+  "scopeName": "source.neuva",
+  "patterns": [
+    { "include": "#comment" },
+    { "include": "#string" },
+    { "include": "#number" },
+    { "include": "#keyword" },
+    { "include": "#type" },
+    { "include": "#activation" },
+    { "include": "#arrow" },
+    { "include": "#operator" }
+  ],
+  "repository": {
+    "comment": {
+      "name": "comment.line.number-sign.neuva",
+      "match": "#.*$"
+    },
+    "string": {
+      "name": "string.quoted.double.neuva",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        {
+          "name": "constant.character.escape.neuva",
+          "match": "\\\\."
+        }
+      ]
+    },
+    "number": {
+      "name": "constant.numeric.neuva",
+      "match": "\\b[0-9]+(?:\\.[0-9]+)?\\b"
+    },
+    "keyword": {
+      "patterns": [
+        {
+          "name": "keyword.control.neuva",
+          "match": "\\b(if|else|for|while|return)\\b"
+        },
+        {
+          "name": "keyword.other.neuva",
+          "match": "\\b(model|layer|train|save|load|predict|print|let|fn|on|to|epochs|accuracy)\\b"
+        },
+        {
+          "name": "constant.language.boolean.neuva",
+          "match": "\\b(true|false)\\b"
+        }
+      ]
+    },
+    "type": {
+      "name": "support.type.neuva",
+      "match": "\\b(int|float|bool|string|tensor|matrix)\\b"
+    },
+    "activation": {
+      "name": "support.function.neuva",
+      "match": "\\b(relu|sigmoid|softmax|tanh|linear|gelu|dense|conv|pool|flatten)\\b"
+    },
+    "arrow": {
+      "name": "keyword.operator.arrow.neuva",
+      "match": "->"
+    },
+    "operator": {
+      "name": "keyword.operator.neuva",
+      "match": "[+\\-*/%]|==|!=|<=|>=|[<>]|=|!"
+    }
+  }
+}

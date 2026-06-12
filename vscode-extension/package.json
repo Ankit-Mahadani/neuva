@@ -1,0 +1,34 @@
+{
+  "name": "neuva-syntax",
+  "displayName": "Neuva Language",
+  "description": "Syntax highlighting for the Neuva machine learning language (.nva files)",
+  "version": "0.1.0",
+  "publisher": "neuva",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Ankit-Mahadani/neuva"
+  },
+  "contributes": {
+    "languages": [
+      {
+        "id": "neuva",
+        "aliases": ["Neuva", "neuva"],
+        "extensions": [".nva"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "neuva",
+        "scopeName": "source.neuva",
+        "path": "./syntaxes/neuva.tmLanguage.json"
+      }
+    ]
+  }
+}
