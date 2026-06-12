@@ -204,6 +204,16 @@ for i in 0..10 {
 
 ---
 
+## Documentation
+
+| Document | Description |
+|---|---|
+| [Getting Started](docs/GETTING_STARTED.md) | Install, hello world, running `.nva` files |
+| [Language Reference](docs/LANGUAGE_REFERENCE.md) | Every keyword with syntax and examples |
+| [Examples](docs/EXAMPLES.md) | Line-by-line walkthrough of the iris classifier |
+
+---
+
 ## Examples
 
 | File | Description |
