@@ -27,12 +27,29 @@ class NeuvaModel(nn.Module):
         self.activation_names: list[str] = []
         for layer in layers:
             if hasattr(layer, "args"):
-                in_size, out_size, act_name = layer.args[0], layer.args[1], layer.args[2]
+                lname = getattr(layer, "name", "dense")
+                args = layer.args
             else:
-                in_size, out_size, act_name = layer  # (in, out, act_name) tuple
-            self.linears.append(nn.Linear(in_size, out_size))
-            self.activations.append(_ACTIVATIONS.get(act_name, lambda x: x))
-            self.activation_names.append(act_name)
+                lname, args = "dense", list(layer)  # (in, out, act_name) tuple
+
+            if lname == "conv":
+                in_ch, out_ch, kernel = args[0], args[1], args[2]
+                self.linears.append(nn.Conv2d(in_ch, out_ch, kernel))
+                self.activations.append(lambda x: x)
+                self.activation_names.append("linear")
+            elif lname == "pool":
+                self.linears.append(nn.MaxPool2d(args[0]))
+                self.activations.append(lambda x: x)
+                self.activation_names.append("linear")
+            elif lname == "flatten":
+                self.linears.append(nn.Flatten())
+                self.activations.append(lambda x: x)
+                self.activation_names.append("linear")
+            else:  # dense / any named linear layer
+                in_size, out_size, act_name = args[0], args[1], args[2]
+                self.linears.append(nn.Linear(in_size, out_size))
+                self.activations.append(_ACTIVATIONS.get(act_name, lambda x: x))
+                self.activation_names.append(act_name)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         for linear, activate in zip(self.linears, self.activations):
@@ -88,6 +105,16 @@ class NeuvaTrainer:
             loss.backward()
             optimizer.step()
             print(f"Epoch {epoch}/{epochs} — loss: {loss.item():.4f}")
+
+
+def evaluate_accuracy(model: NeuvaModel, dataset) -> float:
+    model.eval()
+    with torch.no_grad():
+        outputs = model(dataset.X)
+        predictions = torch.argmax(outputs, dim=1)
+        correct = (predictions == dataset.y).sum().item()
+        total = dataset.y.size(0)
+        return correct / total
 
 
 def evaluate(model: NeuvaModel, dataset) -> float:

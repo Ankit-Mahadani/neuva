@@ -43,13 +43,25 @@ class NeuvaTransformer(Transformer):
         layers = [i for i in items[1:] if isinstance(i, LayerStatement)]
         return ModelStatement(name=name, layers=layers)
 
-    def layer_stmt(self, items):
-        # items: [NAME(layer), NUMBER(in), ARROW, NUMBER(out), NAME(activation), None(NEWLINE)]
-        name = str(items[0])
-        in_size = int(str(items[1]))
-        out_size = int(str(items[3]))
-        activation = str(items[4])
-        return LayerStatement(name=name, args=[in_size, out_size, activation])
+    def layer_dense(self, items):
+        # NAME NUMBER ARROW NUMBER NAME  (NEWLINE→None filtered)
+        t = [i for i in items if i is not None]
+        return LayerStatement(name=str(t[0]), args=[int(str(t[1])), int(str(t[3])), str(t[4])])
+
+    def layer_conv(self, items):
+        # NAME NUMBER ARROW NUMBER NUMBER
+        t = [i for i in items if i is not None]
+        return LayerStatement(name=str(t[0]), args=[int(str(t[1])), int(str(t[3])), int(str(t[4]))])
+
+    def layer_pool(self, items):
+        # NAME NUMBER
+        t = [i for i in items if i is not None]
+        return LayerStatement(name=str(t[0]), args=[int(str(t[1]))])
+
+    def layer_no_args(self, items):
+        # NAME
+        t = [i for i in items if i is not None]
+        return LayerStatement(name=str(t[0]), args=[])
 
     def train_body(self, items):
         clean = [i for i in items if i is not None]

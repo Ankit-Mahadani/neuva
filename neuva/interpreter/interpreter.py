@@ -1,5 +1,5 @@
 from typing import Any, Optional
-from neuva.backend.torch_backend import NeuvaModel, NeuvaTrainer, NeuvaDataset, evaluate, save_model, load_model
+from neuva.backend.torch_backend import NeuvaModel, NeuvaTrainer, NeuvaDataset, evaluate, evaluate_accuracy, save_model, load_model
 from neuva.backend.data_loader import DataSet
 from neuva.parser.ast_nodes import (
     Program, LetStatement, PrintStatement, ExprStatement,
@@ -70,7 +70,7 @@ class NeuvaInterpreter:
         self.env = Environment()
         self.env.set("range", range)
         self.env.set("load",     lambda path: load_model(str(path)) if str(path).endswith(".nva") else DataSet(path=str(path)))
-        self.env.set("accuracy", lambda model, data: evaluate(model, data))
+        self.env.set("accuracy", lambda model, data: evaluate_accuracy(model, data))
         self.env.set("predict",  lambda model, data: "predictions")
         self.env.set("normalize", lambda: DataSet())
         self.env.set("shuffle",   lambda: DataSet())

@@ -25,7 +25,10 @@ let_stmt: "let" NAME ("," NAME)* (":" type)? "=" expr
 // Model definition
 model_def: "model" NAME "{" NEWLINE layer_stmt* "}"  NEWLINE
 
-layer_stmt: "layer" NAME "(" NUMBER ARROW NUMBER "," NAME ")" NEWLINE
+layer_stmt: "layer" NAME "(" NUMBER ARROW NUMBER "," NAME   ")" NEWLINE  -> layer_dense
+          | "layer" NAME "(" NUMBER ARROW NUMBER "," NUMBER ")" NEWLINE  -> layer_conv
+          | "layer" NAME "(" NUMBER ")"                         NEWLINE  -> layer_pool
+          | "layer" NAME                                        NEWLINE  -> layer_no_args
 
 // Train statement
 train_stmt: "train" NAME "on" NAME "for" NUMBER "epochs" ("," train_opt)* NEWLINE

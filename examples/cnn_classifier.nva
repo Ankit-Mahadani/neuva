@@ -1,0 +1,10 @@
+# CNN Classifier — verifies conv, pool, flatten layer parsing
+model CNN {
+    layer conv(1 -> 32, 3)
+    layer pool(2)
+    layer flatten
+    layer dense(32 -> 10, relu)
+}
+
+print "CNN model defined"
+print "Layers: conv(1->32 k=3), pool(k=2), flatten, dense(32->10 relu)"
