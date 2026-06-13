@@ -1,0 +1,14 @@
+# Binary classification — spam vs. ham
+# Expects spam.csv with 10 feature columns and a binary label column
+
+let data = load("spam.csv")
+let train_data, test_data = data.split(0.8)
+
+model SpamClassifier {
+    layer dense(10 -> 32, relu)
+    layer dense(32 -> 1, sigmoid)
+}
+
+train SpamClassifier on train_data for 20 epochs, lr = 0.001, loss = binary_crossentropy
+let acc = accuracy(SpamClassifier, test_data)
+print "Spam classifier accuracy:", acc

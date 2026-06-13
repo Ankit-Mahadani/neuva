@@ -1,0 +1,30 @@
+# Demonstrates if/else, for loops, while loops, and function definitions
+
+fn square(x: int) -> int {
+    return x * x
+}
+
+fn greet(name: string) {
+    print "Hello,", name
+}
+
+greet("Neuva")
+
+let result = square(5)
+print "Square of 5:", result
+
+if result > 20 {
+    print "Result is greater than 20"
+} else {
+    print "Result is 20 or less"
+}
+
+for i in range(5) {
+    print "i =", i
+}
+
+let count = 0
+while count < 3 {
+    print "count =", count
+    let count = count + 1
+}
