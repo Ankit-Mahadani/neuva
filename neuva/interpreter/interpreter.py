@@ -1,3 +1,4 @@
+import difflib
 from typing import Any, Optional
 from neuva.backend.torch_backend import NeuvaModel, NeuvaTrainer, NeuvaDataset, evaluate, evaluate_accuracy, save_model, load_model
 from neuva.backend.data_loader import DataSet
@@ -8,6 +9,13 @@ from neuva.parser.ast_nodes import (
     IfStatement, ForStatement, WhileStatement, FnStatement, ReturnStatement,
     ModelStatement, TrainStatement, SaveStatement, PredictStatement,
 )
+
+
+def find_similar_name(name: str, available_names: list) -> Optional[str]:
+    matches = difflib.get_close_matches(name, available_names, n=1, cutoff=0.6)
+    if matches:
+        return f"Did you mean '{matches[0]}'?"
+    return None
 
 
 class ReturnSignal(Exception):
@@ -27,11 +35,19 @@ class NeuvaFunction:
 
 
 class RuntimeError_(Exception):
-    def __init__(self, message: str, line: int = None, col: int = None):
+    def __init__(self, message: str, line: int = None, col: int = None, hint: str = None):
+        self.raw_message = message
         self.line = line
         self.col = col
-        loc = f" (line {line}, col {col})" if line is not None else ""
-        super().__init__(f"RuntimeError{loc}: {message}")
+        self.hint = hint
+        super().__init__(message)
+
+    def __str__(self) -> str:
+        if self.line is not None and self.col is not None:
+            return f"[Line {self.line}:{self.col}] Error: {self.raw_message}"
+        if self.line is not None:
+            return f"[Line {self.line}] Error: {self.raw_message}"
+        return f"Error: {self.raw_message}"
 
 
 class Environment:
@@ -39,12 +55,20 @@ class Environment:
         self._store: dict[str, Any] = {}
         self.parent = parent
 
-    def get(self, name: str) -> Any:
-        if name in self._store:
-            return self._store[name]
+    def get(self, name: str, line: int = None, col: int = None) -> Any:
+        env = self
+        while env is not None:
+            if name in env._store:
+                return env._store[name]
+            env = env.parent
+        hint = find_similar_name(name, self._all_names())
+        raise RuntimeError_(f"undefined variable '{name}'", line=line, col=col, hint=hint)
+
+    def _all_names(self) -> list:
+        names = list(self._store.keys())
         if self.parent is not None:
-            return self.parent.get(name)
-        raise RuntimeError_(f"Undefined variable '{name}'")
+            names.extend(self.parent._all_names())
+        return names
 
     def set(self, name: str, value: Any) -> None:
         self._store[name] = value
@@ -196,7 +220,11 @@ class NeuvaInterpreter:
         return node.value
 
     def eval_VarExpr(self, node: VarExpr) -> Any:
-        return self.env.get(node.name)
+        return self.env.get(
+            node.name,
+            line=getattr(node, "line", None),
+            col=getattr(node, "col", None),
+        )
 
     def eval_BinaryExpr(self, node: BinaryExpr) -> Any:
         op = node.op

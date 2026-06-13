@@ -179,7 +179,8 @@ class NeuvaTransformer(Transformer):
         return items
 
     def var(self, items):
-        return VarExpr(name=str(items[0]))
+        tok = items[0]
+        return VarExpr(name=str(tok), line=getattr(tok, "line", None), col=getattr(tok, "column", None))
 
     # ── literals ───────────────────────────────────────────────────────────
 

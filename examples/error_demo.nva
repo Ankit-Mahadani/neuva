@@ -1,0 +1,3 @@
+let data = load("examples/data/iris.csv")
+let dat_train, dat_test = data.split(0.8)
+print dat.split(0.8)

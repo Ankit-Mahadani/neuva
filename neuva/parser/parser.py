@@ -10,10 +10,19 @@ with open(_GRAMMAR_PATH, "r") as _f:
 
 class ParseError(Exception):
     def __init__(self, message: str, line: int = None, column: int = None):
+        self.raw_message = message.splitlines()[0] if message else message
         self.line = line
+        self.col = column
         self.column = column
-        loc = f" (line {line}, col {column})" if line is not None else ""
-        super().__init__(f"ParseError{loc}: {message}")
+        self.hint = None
+        super().__init__(message)
+
+    def __str__(self) -> str:
+        if self.line is not None and self.col is not None:
+            return f"[Line {self.line}:{self.col}] Error: {self.raw_message}"
+        if self.line is not None:
+            return f"[Line {self.line}] Error: {self.raw_message}"
+        return f"Error: {self.raw_message}"
 
 
 class NeuvaParser:
