@@ -1,7 +1,7 @@
 # Binary classification — spam vs. ham
 # Expects spam.csv with 10 feature columns and a binary label column
 
-let data = load("spam.csv")
+let data = load("examples/data/spam.csv")
 let train_data, test_data = data.split(0.8)
 
 model SpamClassifier {

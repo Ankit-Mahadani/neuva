@@ -92,8 +92,17 @@ _OPS = {
 class NeuvaInterpreter:
     def __init__(self):
         self.env = Environment()
+        def _load(path):
+            path = str(path)
+            if path.endswith(".nva"):
+                return load_model(path)
+            try:
+                return DataSet(path=path)
+            except FileNotFoundError as exc:
+                raise RuntimeError_(str(exc))
+
         self.env.set("range", range)
-        self.env.set("load",     lambda path: load_model(str(path)) if str(path).endswith(".nva") else DataSet(path=str(path)))
+        self.env.set("load", _load)
         self.env.set("accuracy", lambda model, data: evaluate_accuracy(model, data))
         self.env.set("predict",  lambda model, data: "predictions")
         self.env.set("normalize", lambda: DataSet())

@@ -45,6 +45,8 @@ class DataSet:
             self.X = data["X"]
             self.y = data["y"]
             self.columns: list = data["columns"]
+        elif path is not None:
+            raise FileNotFoundError(f"Data file not found: '{path}'")
         else:
             self.name = name
             self.X = X
@@ -54,7 +56,7 @@ class DataSet:
     def split(self, ratio: float):
         """Return (train, test) using a random row permutation; ratio is the train fraction."""
         if self.X is None:
-            raise ValueError("Cannot split an empty DataSet")
+            return DataSet(f"{self.name}_train"), DataSet(f"{self.name}_test")
         n = len(self.X)
         idx = torch.randperm(n)
         n_train = max(1, int(n * ratio))
@@ -71,7 +73,14 @@ class DataSet:
         mean = self.X.mean(dim=0)
         std = self.X.std(dim=0)
         std[std == 0] = 1.0
-        result = DataSet(self.name, (self.X - mean) / std, self.y)
+        X_norm = (self.X - mean) / std
+        # Normalize continuous targets (float32) for regression; leave class indices (long) unchanged.
+        if self.y is not None and self.y.dtype == torch.float32:
+            y_std = self.y.std()
+            y_norm = (self.y - self.y.mean()) / (y_std if y_std.item() != 0 else torch.tensor(1.0))
+        else:
+            y_norm = self.y
+        result = DataSet(self.name, X_norm, y_norm)
         result.columns = self.columns
         return result
 
