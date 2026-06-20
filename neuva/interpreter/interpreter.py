@@ -186,8 +186,16 @@ class NeuvaInterpreter:
         return self.evaluate(node.expr)
 
     def visit_IfStatement(self, node: IfStatement) -> None:
-        branch = node.then_body if self.evaluate(node.condition) else node.else_body
-        for stmt in branch:
+        if self.evaluate(node.condition):
+            for stmt in node.then_body:
+                self.visit(stmt)
+            return
+        for elif_cond, elif_body in node.elif_branches:
+            if self.evaluate(elif_cond):
+                for stmt in elif_body:
+                    self.visit(stmt)
+                return
+        for stmt in node.else_branch:
             self.visit(stmt)
 
     def visit_ForStatement(self, node: ForStatement) -> None:

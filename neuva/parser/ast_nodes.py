@@ -118,7 +118,8 @@ class ReturnStatement(Node):
 class IfStatement(Node):
     condition: Any = None
     then_body: List[Any] = field(default_factory=list)
-    else_body: List[Any] = field(default_factory=list)
+    elif_branches: List[Any] = field(default_factory=list)  # list of (condition, body) tuples
+    else_branch: List[Any] = field(default_factory=list)
 
 
 @dataclass

@@ -119,14 +119,30 @@ class NeuvaTransformer(Transformer):
     def return_stmt(self, items):
         return ReturnStatement(value=items[0] if items else None)
 
-    def if_body(self, items):
-        return [i for i in items if i is not None and not isinstance(i, Token)]
+    def elif_clause(self, items):
+        cond = items[0]
+        body = [i for i in items[1:] if i is not None and not isinstance(i, Token)]
+        return {"__type__": "elif", "cond": cond, "body": body}
+
+    def else_clause(self, items):
+        body = [i for i in items if i is not None and not isinstance(i, Token)]
+        return {"__type__": "else", "body": body}
 
     def if_stmt(self, items):
         cond = items[0]
-        then_body = items[1] if len(items) > 1 else []
-        else_body = items[2] if len(items) > 2 else []
-        return IfStatement(condition=cond, then_body=then_body, else_body=else_body)
+        then_body = []
+        elif_branches = []
+        else_branch = []
+        for item in items[1:]:
+            if item is None or isinstance(item, Token):
+                continue
+            if isinstance(item, dict) and item.get("__type__") == "elif":
+                elif_branches.append((item["cond"], item["body"]))
+            elif isinstance(item, dict) and item.get("__type__") == "else":
+                else_branch = item["body"]
+            else:
+                then_body.append(item)
+        return IfStatement(condition=cond, then_body=then_body, elif_branches=elif_branches, else_branch=else_branch)
 
     def for_body(self, items):
         return [i for i in items if i is not None and not isinstance(i, Token)]

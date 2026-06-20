@@ -55,9 +55,10 @@ param: NAME ":" type
 // Return statement
 return_stmt: "return" expr?
 
-// If / else statement
-if_stmt: "if" expr if_body ("else" if_body)? NEWLINE
-if_body: "{" NEWLINE statement* "}"
+// If / else if / else statement
+if_stmt: "if" expr "{" NEWLINE statement* "}" elif_clause* else_clause? NEWLINE
+elif_clause: "else" "if" expr "{" NEWLINE statement* "}"
+else_clause: "else" "{" NEWLINE statement* "}"
 
 // For loop
 for_stmt: "for" NAME "in" expr for_body NEWLINE

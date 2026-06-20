@@ -86,7 +86,7 @@ def test_if_statement():
     assert isinstance(node, IfStatement)
     assert node.condition is not None
     assert len(node.then_body) == 1
-    assert len(node.else_body) == 1
+    assert len(node.else_branch) == 1
 
 
 if __name__ == "__main__":
