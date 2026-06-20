@@ -89,6 +89,7 @@ class NeuvaTrainer:
         epochs: int,
         lr: float = 0.001,
         loss_fn: str = "mse",
+        batch_size: int = 16,
     ) -> None:
         print(f"Training on: {DEVICE.type}")
         optimizer = optim.Adam(model.parameters(), lr=lr)
@@ -97,29 +98,45 @@ class NeuvaTrainer:
         out_features = model.linears[-1].out_features if model.linears else 1
         is_multiclass = isinstance(criterion, nn.CrossEntropyLoss)
         is_binary = isinstance(criterion, nn.BCELoss)
+        n = len(data.X)
+        effective_batch = min(batch_size, n)
 
         for epoch in range(1, epochs + 1):
-            optimizer.zero_grad()
-            outputs = model(data.X)
-            if is_multiclass:
-                if data.y is not None and data.y.numel() > 0:
-                    targets = data.y.squeeze().long()
+            indices = torch.randperm(n, device=DEVICE)
+            total_loss = 0.0
+            num_batches = 0
+
+            for start in range(0, n, effective_batch):
+                batch_idx = indices[start: start + effective_batch]
+                X_batch = data.X[batch_idx]
+                y_batch = data.y[batch_idx] if data.y is not None else None
+
+                optimizer.zero_grad()
+                outputs = model(X_batch)
+
+                if is_multiclass:
+                    if y_batch is not None and y_batch.numel() > 0:
+                        targets = y_batch.squeeze().long()
+                    else:
+                        targets = torch.randint(0, out_features, (len(X_batch),), device=DEVICE)
+                    loss = criterion(outputs, targets)
+                elif is_binary:
+                    if y_batch is None or y_batch.numel() == 0 or y_batch.min() < 0 or y_batch.max() > 1:
+                        y_batch = torch.randint(0, 2, outputs.shape, device=DEVICE).float()
+                    else:
+                        y_batch = y_batch.float().view_as(outputs)
+                    loss = criterion(outputs, y_batch)
                 else:
-                    targets = torch.randint(0, out_features, (len(data.X),), device=DEVICE)
-                loss = criterion(outputs, targets)
-            elif is_binary:
-                y = data.y
-                if y is None or y.numel() == 0 or y.min() < 0 or y.max() > 1:
-                    y = torch.randint(0, 2, outputs.shape, device=DEVICE).float()
-                else:
-                    y = y.float().view_as(outputs)
-                loss = criterion(outputs, y)
-            else:
-                targets = data.y.view_as(outputs) if data.y is not None else torch.zeros_like(outputs)
-                loss = criterion(outputs, targets)
-            loss.backward()
-            optimizer.step()
-            print(f"Epoch {epoch}/{epochs} — loss: {loss.item():.4f}")
+                    targets = y_batch.view_as(outputs) if y_batch is not None else torch.zeros_like(outputs)
+                    loss = criterion(outputs, targets)
+
+                loss.backward()
+                optimizer.step()
+                total_loss += loss.item()
+                num_batches += 1
+
+            avg_loss = total_loss / num_batches
+            print(f"Epoch {epoch}/{epochs} — loss: {avg_loss:.4f}")
 
 
 def evaluate_accuracy(model: NeuvaModel, dataset) -> float:
