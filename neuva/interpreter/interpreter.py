@@ -268,6 +268,9 @@ class NeuvaInterpreter:
                 getattr(node, "col", None),
             )
 
+        if op == "+" and (isinstance(left, str) or isinstance(right, str)):
+            return str(left) + str(right)
+
         return fn(left, right)
 
     def eval_CallExpr(self, node: CallExpr) -> Any:

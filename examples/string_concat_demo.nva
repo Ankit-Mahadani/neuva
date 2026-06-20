@@ -1,0 +1,8 @@
+let first = "Neuva"
+let second = "Lang"
+let combined = first + " " + second
+print combined
+
+let name = "Ankit"
+let greeting = "Hello, " + name + "!"
+print greeting
