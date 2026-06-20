@@ -9,6 +9,7 @@ from neuva.interpreter.interpreter import NeuvaInterpreter, RuntimeError_
 
 _HELP = """\
 Usage: neuva <file.nva>
+       neuva shell
        neuva --version"""
 
 
@@ -55,6 +56,30 @@ def format_error(exc, source: str) -> str:
     return "\n".join(parts)
 
 
+def shell() -> None:
+    print(f"Neuva {_get_version()} — interactive shell. Type 'exit' to quit.")
+    parser = NeuvaParser()
+    interp = NeuvaInterpreter()
+    while True:
+        try:
+            line = input(">>> ")
+        except (EOFError, KeyboardInterrupt):
+            print()
+            break
+        stripped = line.strip()
+        if stripped in ("exit", "quit"):
+            break
+        if not stripped:
+            continue
+        try:
+            ast = parser.parse(line)
+            interp.visit(ast)
+        except ParseError as exc:
+            print(format_error(exc, line))
+        except RuntimeError_ as exc:
+            print(format_error(exc, line))
+
+
 def main() -> None:
     if len(sys.argv) < 2:
         print(_HELP, file=sys.stderr)
@@ -69,6 +94,10 @@ def main() -> None:
     if arg in ("--help", "-h"):
         print(_HELP)
         sys.exit(0)
+
+    if arg == "shell":
+        shell()
+        return
 
     path = arg
 
