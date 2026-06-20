@@ -1,8 +1,30 @@
+import re
 import sys
+from importlib.metadata import version, PackageNotFoundError
+from pathlib import Path
 
 from neuva.parser import NeuvaParser
 from neuva.parser.parser import ParseError
 from neuva.interpreter.interpreter import NeuvaInterpreter, RuntimeError_
+
+_HELP = """\
+Usage: neuva <file.nva>
+       neuva --version"""
+
+
+def _get_version() -> str:
+    # Prefer pyproject.toml so development builds always show the right version.
+    try:
+        toml = (Path(__file__).parent.parent / "pyproject.toml").read_text(encoding="utf-8")
+        m = re.search(r'^version\s*=\s*"([^"]+)"', toml, re.MULTILINE)
+        if m:
+            return m.group(1)
+    except Exception:
+        pass
+    try:
+        return version("neuva-lang")
+    except PackageNotFoundError:
+        return "0.3.0"
 
 
 def format_error(exc, source: str) -> str:
@@ -35,10 +57,20 @@ def format_error(exc, source: str) -> str:
 
 def main() -> None:
     if len(sys.argv) < 2:
-        print("usage: neuva <file.nva>", file=sys.stderr)
+        print(_HELP, file=sys.stderr)
         sys.exit(1)
 
-    path = sys.argv[1]
+    arg = sys.argv[1]
+
+    if arg in ("--version", "-v"):
+        print(f"Neuva {_get_version()}")
+        sys.exit(0)
+
+    if arg in ("--help", "-h"):
+        print(_HELP)
+        sys.exit(0)
+
+    path = arg
 
     if not path.endswith(".nva"):
         print(f"warning: '{path}' does not have a .nva extension", file=sys.stderr)
