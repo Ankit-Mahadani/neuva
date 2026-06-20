@@ -4,16 +4,26 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "neuva-lang"
-version = "0.4.0"
+version = "1.0.0"
 description = "Neuva — A working ML programming language with lexer, parser, AST and interpreter"
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.10"
-dependencies = ["lark>=1.1"]
+dependencies = [
+    "lark>=1.1",
+    "torch>=2.0",
+    "numpy>=1.24",
+    "pandas>=2.0",
+]
 keywords = ["machine-learning", "programming-language", "neural-network"]
 classifiers = [
-    "Development Status :: 1 - Planning",
+    "Development Status :: 4 - Beta",
     "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Education",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 
 [project.scripts]

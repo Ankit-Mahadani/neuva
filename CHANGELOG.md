@@ -4,7 +4,23 @@ All notable changes to Neuva are documented here.
 
 ---
 
-## [0.4.0] — Day 34 (current)
+## [1.0.0] — First stable release
+- **First stable milestone** — all core language features complete and tested
+- F-string interpolation: `"Hello, {name}"` substitutes variables inline
+- List literals and index access: `let scores = [85, 90, 78]`, `scores[0]`
+- `and` / `or` keywords with correct short-circuit evaluation and proper precedence
+- `dropout(p)` maps to `nn.Dropout` as a real regularization layer
+- `print ModelName` shows a formatted summary with layer descriptions and parameter count
+- Built-in `len()` function for lists
+- CLI: `neuva shell` (interactive REPL), `--version`, `--help`
+- CLI: `Error: file 'foo.nva' not found` — clean message, no Python traceback
+- `neuva shell` version banner reads `pyproject.toml` dynamically
+- 54 tests passing across lexer, parser, AST, interpreter, and examples
+- All 13 example files run without errors
+
+---
+
+## [0.4.0] — Day 34
 - F-string interpolation in string literals: `"Hello, {name}"`
 - List literals and index access: `[1, 2, 3]`, `scores[0]`
 - `and` / `or` keywords with correct short-circuit evaluation

@@ -1,10 +1,10 @@
 # Linear Regression in Neuva
-let data = load("housing.csv")
+let data = load("examples/data/housing.csv")
 let train_data, test_data = data.split(0.8)
 
 model HousePredictor {
-    layer dense(10 -> 64, relu)
-    layer dense(64 -> 1,  linear)
+    layer dense(8 -> 64, relu)
+    layer dense(64 -> 1, linear)
 }
 
 train HousePredictor on train_data for 50 epochs, lr=0.01, loss=mse
