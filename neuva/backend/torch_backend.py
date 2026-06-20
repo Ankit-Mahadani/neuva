@@ -4,6 +4,8 @@ import torch.optim as optim
 
 from neuva.parser.ast_nodes import LayerStatement
 
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 _ACTIVATIONS = {
     "relu":     torch.relu,
     "sigmoid":  torch.sigmoid,
@@ -52,6 +54,8 @@ class NeuvaModel(nn.Module):
                 self.activations.append(_ACTIVATIONS.get(act_name, lambda x: x))
                 self.activation_names.append(act_name)
 
+        self.to(DEVICE)
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         for linear, activate in zip(self.linears, self.activations):
             x = activate(linear(x))
@@ -64,11 +68,11 @@ class NeuvaDataset:
     def __init__(self, dataset, in_size: int = 1, n_samples: int = 64):
         self.name = getattr(dataset, "name", "dataset")
         if getattr(dataset, "X", None) is not None:
-            self.X = dataset.X
-            self.y = dataset.y
+            self.X = dataset.X.to(DEVICE)
+            self.y = dataset.y.to(DEVICE)
         else:
-            self.X = torch.randn(n_samples, in_size)
-            self.y = torch.randn(n_samples, 1)
+            self.X = torch.randn(n_samples, in_size, device=DEVICE)
+            self.y = torch.randn(n_samples, 1, device=DEVICE)
 
     def __len__(self) -> int:
         return len(self.X)
@@ -86,6 +90,7 @@ class NeuvaTrainer:
         lr: float = 0.001,
         loss_fn: str = "mse",
     ) -> None:
+        print(f"Training on: {DEVICE.type}")
         optimizer = optim.Adam(model.parameters(), lr=lr)
         criterion = _LOSSES.get(loss_fn, nn.MSELoss)()
 
@@ -100,12 +105,12 @@ class NeuvaTrainer:
                 if data.y is not None and data.y.numel() > 0:
                     targets = data.y.squeeze().long()
                 else:
-                    targets = torch.randint(0, out_features, (len(data.X),))
+                    targets = torch.randint(0, out_features, (len(data.X),), device=DEVICE)
                 loss = criterion(outputs, targets)
             elif is_binary:
                 y = data.y
                 if y is None or y.numel() == 0 or y.min() < 0 or y.max() > 1:
-                    y = torch.randint(0, 2, outputs.shape).float()
+                    y = torch.randint(0, 2, outputs.shape, device=DEVICE).float()
                 else:
                     y = y.float().view_as(outputs)
                 loss = criterion(outputs, y)
@@ -123,8 +128,8 @@ def evaluate_accuracy(model: NeuvaModel, dataset) -> float:
     if X is None or y is None or len(X) == 0:
         in_size = model.linears[0].in_features if model.linears else 1
         out_size = model.linears[-1].out_features if model.linears else 1
-        X = torch.randn(64, in_size)
-        y = torch.randint(0, max(2, out_size), (64,))
+        X = torch.randn(64, in_size, device=DEVICE)
+        y = torch.randint(0, max(2, out_size), (64,), device=DEVICE)
     model.eval()
     with torch.no_grad():
         outputs = model(X)
