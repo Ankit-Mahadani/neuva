@@ -144,6 +144,17 @@ class FnStatement(Node):
 
 
 @dataclass
+class ListLiteral(Node):
+    elements: List[Any] = field(default_factory=list)
+
+
+@dataclass
+class IndexExpr(Node):
+    obj: Any = None
+    index: Any = None
+
+
+@dataclass
 class ExprStatement(Node):
     expr: Any = None
 

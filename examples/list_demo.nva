@@ -1,0 +1,15 @@
+let scores = [85, 90, 78, 92]
+print scores[0]
+print scores[3]
+
+let n = len(scores)
+print "Length: {n}"
+
+let first = scores[0]
+let last = scores[3]
+print "First: {first}, Last: {last}"
+
+let primes = [2, 3, 5, 7, 11]
+let third = primes[2]
+print "Third prime: {third}"
+print "Count of primes: {n}"

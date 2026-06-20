@@ -1,0 +1,7 @@
+model Classifier {
+    layer dense(32 -> 16, relu)
+    layer dropout(0.3)
+    layer dense(16 -> 4, softmax)
+}
+
+print Classifier

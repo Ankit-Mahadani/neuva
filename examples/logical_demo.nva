@@ -1,0 +1,30 @@
+let score = 75
+
+if score > 50 and score < 100 {
+    print "valid score"
+}
+
+let passed = true
+let bonus = false
+if passed or bonus {
+    print "you qualify"
+}
+
+if score >= 90 {
+    print "Grade A"
+} else if score >= 75 {
+    print "Grade B"
+} else if score >= 60 {
+    print "Grade C"
+} else {
+    print "Grade F"
+}
+
+let x = 5
+if x > 0 and x < 10 {
+    print "x is a single digit positive number"
+}
+
+if x > 100 or x < 10 {
+    print "x is outside 10..100"
+}

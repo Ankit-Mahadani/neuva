@@ -1,0 +1,12 @@
+let lang = "Neuva"
+let version = 4
+print "Language: {lang}"
+print "Version: {version}"
+
+let acc = 95
+print "Accuracy: {acc}%"
+
+let first = "Hello"
+let second = "World"
+let greeting = "{first}, {second}!"
+print greeting

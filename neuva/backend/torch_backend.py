@@ -48,6 +48,11 @@ class NeuvaModel(nn.Module):
                 self.linears.append(nn.Flatten())
                 self.activations.append(lambda x: x)
                 self.activation_names.append("linear")
+            elif lname == "dropout":
+                p = float(args[0]) if args else 0.5
+                self.linears.append(nn.Dropout(p))
+                self.activations.append(lambda x: x)
+                self.activation_names.append("linear")
             else:  # dense / any named linear layer
                 in_size, out_size, act_name = args[0], args[1], args[2]
                 self.linears.append(nn.Linear(in_size, out_size))

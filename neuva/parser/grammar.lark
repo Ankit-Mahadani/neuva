@@ -71,8 +71,14 @@ while_body: "{" NEWLINE statement* "}"
 // Expression statement (standalone call or assignment)
 expr_stmt: expr
 
-// Expressions
-?expr: comparison
+// Expressions — or_expr > and_expr > comparison > sum > product > unary > call_or_attr
+?expr: or_expr
+
+?or_expr: and_expr
+        | or_expr "or" and_expr -> or_
+
+?and_expr: comparison
+         | and_expr "and" comparison -> and_
 
 ?comparison: sum
            | sum "==" sum -> eq
@@ -97,11 +103,17 @@ expr_stmt: expr
 
 ?call_or_attr: call_or_attr "." NAME "(" arg_list? ")" -> method_call
              | call_or_attr "(" arg_list? ")" -> func_call
+             | call_or_attr "[" expr "]" -> index_expr
              | primary
 
 ?primary: "(" expr ")"
+        | list_lit
         | literal
         | NAME -> var
+
+// List literal
+list_lit: "[" "]"
+        | "[" expr ("," expr)* "]"
 
 arg_list: expr ("," expr)*
 

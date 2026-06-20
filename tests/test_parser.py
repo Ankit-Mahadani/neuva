@@ -67,6 +67,45 @@ def test_if_statement():
     assert tree is not None
 
 
+def test_list_literal():
+    parser = NeuvaParser()
+    tree = parser.parse("let scores = [85, 90, 78, 92]")
+    assert tree is not None
+
+
+def test_empty_list():
+    parser = NeuvaParser()
+    tree = parser.parse("let empty = []")
+    assert tree is not None
+
+
+def test_list_index():
+    parser = NeuvaParser()
+    tree = parser.parse("let x = scores[0]")
+    assert tree is not None
+
+
+def test_and_operator():
+    parser = NeuvaParser()
+    src = "if x > 0 and x < 100 {\n    print \"valid\"\n}\n"
+    tree = parser.parse(src)
+    assert tree is not None
+
+
+def test_or_operator():
+    parser = NeuvaParser()
+    src = "if x > 100 or x < 0 {\n    print \"out of range\"\n}\n"
+    tree = parser.parse(src)
+    assert tree is not None
+
+
+def test_dropout_layer():
+    parser = NeuvaParser()
+    src = "model Net {\n    layer dense(10 -> 8, relu)\n    layer dropout(0.3)\n    layer dense(8 -> 2, softmax)\n}\n"
+    tree = parser.parse(src)
+    assert tree is not None
+
+
 if __name__ == "__main__":
     tests = [
         test_print_statement,

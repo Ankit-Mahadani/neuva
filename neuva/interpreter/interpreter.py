@@ -1,4 +1,5 @@
 import difflib
+import re
 from typing import Any, Optional
 from neuva.backend.torch_backend import NeuvaModel, NeuvaTrainer, NeuvaDataset, evaluate, evaluate_accuracy, save_model, load_model
 from neuva.backend.data_loader import DataSet
@@ -8,6 +9,7 @@ from neuva.parser.ast_nodes import (
     VarExpr, BinaryExpr, CallExpr, MethodCallExpr,
     IfStatement, ForStatement, WhileStatement, FnStatement, ReturnStatement,
     ModelStatement, TrainStatement, SaveStatement, PredictStatement,
+    ListLiteral, IndexExpr,
 )
 
 
@@ -102,6 +104,7 @@ class NeuvaInterpreter:
                 raise RuntimeError_(str(exc))
 
         self.env.set("range", range)
+        self.env.set("len", len)
         self.env.set("load", _load)
         self.env.set("accuracy", lambda model, data: evaluate_accuracy(model, data))
         self.env.set("predict",  lambda model, data: "predictions")
@@ -165,6 +168,7 @@ class NeuvaInterpreter:
 
         in_size = model_node.layers[0].args[0] if model_node.layers else 1
         neuva_model = NeuvaModel(model_node.layers)
+        neuva_model.model_name = node.model
         dataset = NeuvaDataset(data_obj, in_size=in_size)
         NeuvaTrainer().train(neuva_model, dataset, node.epochs, lr=lr, loss_fn=loss_fn)
         self.env.set(node.model, neuva_model)
@@ -180,7 +184,55 @@ class NeuvaInterpreter:
         pass
 
     def visit_PrintStatement(self, node: PrintStatement) -> None:
-        print(*[self.evaluate(e) for e in node.exprs])
+        values = [self.evaluate(e) for e in node.exprs]
+        if len(values) == 1:
+            val = values[0]
+            if isinstance(val, ModelStatement):
+                print(self._model_stmt_summary(val))
+                return
+            if isinstance(val, NeuvaModel):
+                print(self._neuva_model_summary(val))
+                return
+        print(*values)
+
+    def _model_stmt_summary(self, model: ModelStatement) -> str:
+        lines = [f"Model: {model.name}"]
+        total = 0
+        for layer in model.layers:
+            if len(layer.args) >= 3:
+                lines.append(f"  {layer.name}({layer.args[0]} -> {layer.args[1]}, {layer.args[2]})")
+                try:
+                    total += int(float(str(layer.args[0]))) * int(float(str(layer.args[1]))) + int(float(str(layer.args[1])))
+                except (ValueError, TypeError):
+                    pass
+            elif len(layer.args) == 1:
+                lines.append(f"  {layer.name}({layer.args[0]})")
+            else:
+                lines.append(f"  {layer.name}")
+        lines.append(f"Total parameters: {total}")
+        return "\n".join(lines)
+
+    def _neuva_model_summary(self, model: NeuvaModel) -> str:
+        name = getattr(model, "model_name", "(trained)")
+        lines = [f"Model: {name}"]
+        for i, layer in enumerate(model.linears):
+            act = model.activation_names[i] if i < len(model.activation_names) else "linear"
+            ltype = type(layer).__name__
+            if ltype == "Linear":
+                lines.append(f"  dense({layer.in_features} -> {layer.out_features}, {act})")
+            elif ltype == "Dropout":
+                lines.append(f"  dropout({layer.p})")
+            elif ltype == "MaxPool2d":
+                lines.append(f"  pool({layer.kernel_size})")
+            elif ltype == "Conv2d":
+                lines.append(f"  conv({layer.in_channels} -> {layer.out_channels}, {layer.kernel_size})")
+            elif ltype == "Flatten":
+                lines.append("  flatten")
+            else:
+                lines.append(f"  {ltype.lower()}")
+        total = sum(p.numel() for p in model.parameters())
+        lines.append(f"Total parameters: {total}")
+        return "\n".join(lines)
 
     def visit_ExprStatement(self, node: ExprStatement) -> Any:
         return self.evaluate(node.expr)
@@ -231,7 +283,30 @@ class NeuvaInterpreter:
         return node.value
 
     def eval_StringLiteral(self, node: StringLiteral) -> str:
-        return node.value
+        s = node.value
+        if '{' not in s:
+            return s
+        def _sub(m):
+            try:
+                return str(self.env.get(m.group(1)))
+            except RuntimeError_:
+                return m.group(0)
+        return re.sub(r'\{(\w+)\}', _sub, s)
+
+    def eval_ListLiteral(self, node: ListLiteral) -> list:
+        return [self.evaluate(e) for e in node.elements]
+
+    def eval_IndexExpr(self, node: IndexExpr) -> Any:
+        obj = self.evaluate(node.obj)
+        idx = self.evaluate(node.index)
+        try:
+            return obj[idx]
+        except (IndexError, KeyError, TypeError) as exc:
+            raise RuntimeError_(
+                str(exc),
+                getattr(node, "line", None),
+                getattr(node, "col", None),
+            )
 
     def eval_BoolLiteral(self, node: BoolLiteral) -> bool:
         return node.value
@@ -249,6 +324,12 @@ class NeuvaInterpreter:
             return -self.evaluate(node.right)
         if op == "not":
             return not self.evaluate(node.right)
+        if op == "and":
+            left = self.evaluate(node.left)
+            return left and self.evaluate(node.right)
+        if op == "or":
+            left = self.evaluate(node.left)
+            return left or self.evaluate(node.right)
 
         fn = _OPS.get(op)
         if fn is None:

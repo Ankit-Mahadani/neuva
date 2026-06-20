@@ -108,7 +108,7 @@ def main() -> None:
         with open(path, "r", encoding="utf-8") as fh:
             source = fh.read()
     except FileNotFoundError:
-        print(f"error: file not found: '{path}'", file=sys.stderr)
+        print(f"Error: file '{path}' not found", file=sys.stderr)
         sys.exit(1)
     except OSError as exc:
         print(f"error: could not read '{path}': {exc}", file=sys.stderr)

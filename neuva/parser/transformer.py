@@ -5,6 +5,7 @@ from .ast_nodes import (
     FnStatement, Parameter, ReturnStatement, IfStatement, ForStatement,
     WhileStatement, ExprStatement, BinaryExpr, CallExpr, MethodCallExpr,
     VarExpr, NumberLiteral, FloatLiteral, StringLiteral, BoolLiteral,
+    ListLiteral, IndexExpr,
 )
 
 
@@ -54,9 +55,11 @@ class NeuvaTransformer(Transformer):
         return LayerStatement(name=str(t[0]), args=[int(str(t[1])), int(str(t[3])), int(str(t[4]))])
 
     def layer_pool(self, items):
-        # NAME NUMBER
+        # NAME NUMBER  (number may be int like pool size or float like dropout rate)
         t = [i for i in items if i is not None]
-        return LayerStatement(name=str(t[0]), args=[int(str(t[1]))])
+        val = str(t[1])
+        arg = float(val) if '.' in val else int(val)
+        return LayerStatement(name=str(t[0]), args=[arg])
 
     def layer_no_args(self, items):
         # NAME
@@ -166,19 +169,27 @@ class NeuvaTransformer(Transformer):
 
     # ── expressions ────────────────────────────────────────────────────────
 
-    def add(self, items): return BinaryExpr(op="+",  left=items[0], right=items[1])
-    def sub(self, items): return BinaryExpr(op="-",  left=items[0], right=items[1])
-    def mul(self, items): return BinaryExpr(op="*",  left=items[0], right=items[1])
-    def div(self, items): return BinaryExpr(op="/",  left=items[0], right=items[1])
-    def mod(self, items): return BinaryExpr(op="%",  left=items[0], right=items[1])
-    def eq(self, items):  return BinaryExpr(op="==", left=items[0], right=items[1])
-    def ne(self, items):  return BinaryExpr(op="!=", left=items[0], right=items[1])
-    def lt(self, items):  return BinaryExpr(op="<",  left=items[0], right=items[1])
-    def le(self, items):  return BinaryExpr(op="<=", left=items[0], right=items[1])
-    def gt(self, items):  return BinaryExpr(op=">",  left=items[0], right=items[1])
-    def ge(self, items):  return BinaryExpr(op=">=", left=items[0], right=items[1])
-    def neg(self, items): return BinaryExpr(op="neg", left=None, right=items[0])
+    def add(self, items): return BinaryExpr(op="+",   left=items[0], right=items[1])
+    def sub(self, items): return BinaryExpr(op="-",   left=items[0], right=items[1])
+    def mul(self, items): return BinaryExpr(op="*",   left=items[0], right=items[1])
+    def div(self, items): return BinaryExpr(op="/",   left=items[0], right=items[1])
+    def mod(self, items): return BinaryExpr(op="%",   left=items[0], right=items[1])
+    def eq(self, items):  return BinaryExpr(op="==",  left=items[0], right=items[1])
+    def ne(self, items):  return BinaryExpr(op="!=",  left=items[0], right=items[1])
+    def lt(self, items):  return BinaryExpr(op="<",   left=items[0], right=items[1])
+    def le(self, items):  return BinaryExpr(op="<=",  left=items[0], right=items[1])
+    def gt(self, items):  return BinaryExpr(op=">",   left=items[0], right=items[1])
+    def ge(self, items):  return BinaryExpr(op=">=",  left=items[0], right=items[1])
+    def and_(self, items): return BinaryExpr(op="and", left=items[0], right=items[1])
+    def or_(self, items):  return BinaryExpr(op="or",  left=items[0], right=items[1])
+    def neg(self, items):  return BinaryExpr(op="neg", left=None, right=items[0])
     def not_(self, items): return BinaryExpr(op="not", left=None, right=items[0])
+
+    def list_lit(self, items):
+        return ListLiteral(elements=[i for i in items if i is not None])
+
+    def index_expr(self, items):
+        return IndexExpr(obj=items[0], index=items[1])
 
     def func_call(self, items):
         callee = items[0]

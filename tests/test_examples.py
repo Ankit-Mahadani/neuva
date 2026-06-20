@@ -25,7 +25,10 @@ def test_iris_example_parses(path):
     assert tree is not None
 
 
-@pytest.mark.parametrize("fname", ["spam_classifier.nva", "house_price.nva", "control_flow_demo.nva"])
+@pytest.mark.parametrize("fname", [
+    "spam_classifier.nva", "house_price.nva", "control_flow_demo.nva",
+    "fstring_demo.nva", "list_demo.nva", "logical_demo.nva", "dropout_demo.nva",
+])
 def test_new_examples_parse(fname):
     parser = NeuvaParser()
     tree = parser.parse_file(os.path.join(EXAMPLES_DIR, fname))
