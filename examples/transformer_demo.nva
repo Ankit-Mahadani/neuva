@@ -1,0 +1,13 @@
+# Transformer / attention demo — token embeddings through a transformer encoder layer.
+# embedding(1000, 64) maps token ids -> 64-dim vectors; transformer(64, 4, 128) attends
+# over the sequence and pools it back to a single 64-dim vector per example, so flatten
+# is a no-op and dense(64 -> 3, softmax) classifies directly on it.
+
+model TextClassifier {
+    layer embedding(1000, 64)
+    layer transformer(64, 4, 128)
+    layer flatten
+    layer dense(64 -> 3, softmax)
+}
+
+print TextClassifier

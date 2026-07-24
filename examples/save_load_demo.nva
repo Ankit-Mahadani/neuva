@@ -1,0 +1,16 @@
+let data = load("examples/data/iris.csv")
+let train_data, test_data = data.split(0.8)
+
+model IrisNet {
+    layer dense(4 -> 16, relu)
+    layer dense(16 -> 3, softmax)
+}
+
+train IrisNet on train_data for 20 epochs, lr=0.01, loss=crossentropy
+let acc_before = accuracy(IrisNet, test_data)
+print "Accuracy before save: {acc_before}"
+
+save IrisNet to "iris_model.nva"
+let loaded = load("iris_model.nva")
+let acc_after = accuracy(loaded, test_data)
+print "Accuracy after load: {acc_after}"

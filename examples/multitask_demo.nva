@@ -1,11 +1,19 @@
-# Multi-output model demo — a shared trunk with two named output heads.
-# Note: training multi-output models with per-head losses isn't supported yet,
-# this demonstrates definition, the forward pass shape, and print formatting.
+# Multi-output model demo — a shared trunk with two named output heads,
+# trained jointly (equally-weighted MSE for the regression head + cross-entropy
+# for the classification head).
+# multitask.csv: 4 features, then petal_area (regression target) and species
+# (classification target) as the last two columns — n_targets=2 loads both as
+# a single (N, 2) target tensor, one column per head.
+
+let data = load("examples/data/multitask.csv", 2)
+let train_data, test_data = data.split(0.8)
 
 model MultiTask {
-    layer dense(10 -> 64, relu)
-    output classification: dense(64 -> 3, softmax)
-    output regression: dense(64 -> 1, linear)
+    layer dense(4 -> 32, relu)
+    output classification: dense(32 -> 3, softmax)
+    output regression: dense(32 -> 1, linear)
 }
 
-print MultiTask
+train MultiTask on train_data for 30 epochs, lr = 0.01
+let acc = accuracy(MultiTask, test_data)
+print "Per-head accuracy:", acc

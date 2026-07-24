@@ -6,11 +6,14 @@ from pathlib import Path
 from neuva.parser import NeuvaParser
 from neuva.parser.parser import ParseError
 from neuva.interpreter.interpreter import NeuvaInterpreter, RuntimeError_
+from neuva.typechecker import TypeChecker
 
 _HELP = """\
-Usage: neuva <file.nva>
+Usage: neuva <file.nva> [--no-check]
        neuva shell
-       neuva --version"""
+       neuva --version
+
+  --no-check   Skip static type checking and run the program directly."""
 
 
 def _get_version() -> str:
@@ -81,11 +84,15 @@ def shell() -> None:
 
 
 def main() -> None:
-    if len(sys.argv) < 2:
+    argv = sys.argv[1:]
+    no_check = "--no-check" in argv
+    argv = [a for a in argv if a != "--no-check"]
+
+    if not argv:
         print(_HELP, file=sys.stderr)
         sys.exit(1)
 
-    arg = sys.argv[1]
+    arg = argv[0]
 
     if arg in ("--version", "-v"):
         print(f"Neuva {_get_version()}")
@@ -119,6 +126,13 @@ def main() -> None:
     except ParseError as exc:
         print(format_error(exc, source), file=sys.stderr)
         sys.exit(1)
+
+    if not no_check:
+        errors = TypeChecker().check(ast)
+        if errors:
+            for err in errors:
+                print(format_error(err, source), file=sys.stderr)
+            sys.exit(1)
 
     try:
         NeuvaInterpreter().visit(ast)

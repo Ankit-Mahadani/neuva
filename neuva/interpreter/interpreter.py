@@ -181,12 +181,12 @@ _OPS = {
 class NeuvaInterpreter:
     def __init__(self):
         self.env = Environment()
-        def _load(path):
+        def _load(path, n_targets=1):
             path = str(path)
             if path.endswith(".nva"):
                 return load_model(path)
             try:
-                return DataSet(path=path)
+                return DataSet(path=path, n_targets=int(n_targets))
             except FileNotFoundError as exc:
                 raise RuntimeError_(str(exc))
 
@@ -353,6 +353,12 @@ class NeuvaInterpreter:
             if layer.name in ("rnn", "lstm") and len(layer.args) >= 2:
                 num_layers = layer.args[2] if len(layer.args) >= 3 else 1
                 lines.append(f"  {layer.name}({layer.args[0]} -> {layer.args[1]}, num_layers={num_layers})")
+            elif layer.name == "transformer" and len(layer.args) >= 3:
+                lines.append(f"  transformer(embed_dim={layer.args[0]}, num_heads={layer.args[1]}, ff_dim={layer.args[2]})")
+            elif layer.name == "attention" and len(layer.args) >= 2:
+                lines.append(f"  attention(embed_dim={layer.args[0]}, num_heads={layer.args[1]})")
+            elif layer.name == "embedding" and len(layer.args) >= 2:
+                lines.append(f"  embedding(vocab_size={layer.args[0]}, embed_dim={layer.args[1]})")
             elif len(layer.args) >= 3:
                 lines.append(f"  {layer.name}({layer.args[0]} -> {layer.args[1]}, {layer.args[2]})")
                 try:
@@ -387,6 +393,12 @@ class NeuvaInterpreter:
                 lines.append("  flatten")
             elif ltype == "_RNNWrapper":
                 lines.append(f"  {layer.kind}({layer.input_size} -> {layer.hidden_size}, num_layers={layer.num_layers})")
+            elif ltype == "_EmbeddingWrapper":
+                lines.append(f"  embedding(vocab_size={layer.vocab_size}, embed_dim={layer.embed_dim})")
+            elif ltype == "_AttentionWrapper":
+                lines.append(f"  attention(embed_dim={layer.embed_dim}, num_heads={layer.num_heads})")
+            elif ltype == "_TransformerWrapper":
+                lines.append(f"  transformer(embed_dim={layer.embed_dim}, num_heads={layer.num_heads}, ff_dim={layer.ff_dim})")
             else:
                 lines.append(f"  {ltype.lower()}")
         for oname in getattr(model, "output_names", []):

@@ -4,31 +4,38 @@ import pandas as pd
 from typing import Optional
 
 
-def load_csv(path: str) -> dict:
+def load_csv(path: str, n_targets: int = 1) -> dict:
     """Read a CSV and return {"X": tensor, "y": tensor, "columns": list}.
 
-    y dtype is long when the target column contains only integers (classification),
-    float32 otherwise (regression).
+    With n_targets=1 (the default), y is a 1D tensor — long dtype when the target
+    column contains only integers (classification), float32 otherwise (regression).
+    With n_targets>1, the last `n_targets` numeric columns become a 2D float32 y
+    tensor of shape (N, n_targets), one column per target — used for multi-output
+    models where each column feeds a different output head.
     """
     df = pd.read_csv(path)
     numeric = df.select_dtypes(include="number")
-    if numeric.shape[1] < 2:
+    if numeric.shape[1] < n_targets + 1:
         raise ValueError(
-            f"'{path}' needs at least 2 numeric columns (features + target); "
-            f"found {numeric.shape[1]}"
+            f"'{path}' needs at least {n_targets + 1} numeric columns (features + "
+            f"{n_targets} target(s)); found {numeric.shape[1]}"
         )
 
-    feature_cols = numeric.columns[:-1].tolist()
-    target_col = numeric.columns[-1]
+    feature_cols = numeric.columns[:-n_targets].tolist()
+    target_cols = numeric.columns[-n_targets:].tolist()
 
     X = torch.tensor(numeric[feature_cols].values, dtype=torch.float32)
 
-    if pd.api.types.is_integer_dtype(numeric[target_col]):
-        y = torch.tensor(numeric[target_col].values, dtype=torch.long)
+    if n_targets == 1:
+        target_col = target_cols[0]
+        if pd.api.types.is_integer_dtype(numeric[target_col]):
+            y = torch.tensor(numeric[target_col].values, dtype=torch.long)
+        else:
+            y = torch.tensor(numeric[target_col].values, dtype=torch.float32)
     else:
-        y = torch.tensor(numeric[target_col].values, dtype=torch.float32)
+        y = torch.tensor(numeric[target_cols].values, dtype=torch.float32)
 
-    return {"X": X, "y": y, "columns": feature_cols + [target_col]}
+    return {"X": X, "y": y, "columns": feature_cols + target_cols}
 
 
 class DataSet:
@@ -38,9 +45,10 @@ class DataSet:
         X: Optional[torch.Tensor] = None,
         y: Optional[torch.Tensor] = None,
         path: Optional[str] = None,
+        n_targets: int = 1,
     ):
         if path is not None and os.path.isfile(path):
-            data = load_csv(path)
+            data = load_csv(path, n_targets=n_targets)
             self.name = os.path.splitext(os.path.basename(path))[0]
             self.X = data["X"]
             self.y = data["y"]

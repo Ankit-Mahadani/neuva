@@ -33,6 +33,8 @@ layer_stmt: _LAYER NAME "(" NUMBER ARROW NUMBER "," NAME   ")" NEWLINE  -> layer
           | _LAYER NAME "(" NUMBER ARROW NUMBER "," NUMBER ")" NEWLINE  -> layer_conv
           | _LAYER NAME "(" NUMBER ARROW NUMBER ")"            NEWLINE  -> layer_seq
           | _LAYER NAME "(" NUMBER ")"                         NEWLINE  -> layer_pool
+          | _LAYER NAME "(" NUMBER "," NUMBER ")"              NEWLINE  -> layer_pair
+          | _LAYER NAME "(" NUMBER "," NUMBER "," NUMBER ")"   NEWLINE  -> layer_triple
           | _LAYER NAME                                        NEWLINE  -> layer_no_args
           | _OUTPUT NAME ":" NAME "(" NUMBER ARROW NUMBER "," NAME ")" NEWLINE -> output_dense
 

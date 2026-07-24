@@ -67,6 +67,16 @@ class NeuvaTransformer(Transformer):
         arg = float(val) if '.' in val else int(val)
         return LayerStatement(name=str(t[0]), args=[arg])
 
+    def layer_pair(self, items):
+        # NAME NUMBER "," NUMBER  (e.g. attention(embed_dim, num_heads), embedding(vocab_size, embed_dim))
+        t = [i for i in items if i is not None]
+        return LayerStatement(name=str(t[0]), args=[int(str(t[1])), int(str(t[2]))])
+
+    def layer_triple(self, items):
+        # NAME NUMBER "," NUMBER "," NUMBER  (e.g. transformer(embed_dim, num_heads, ff_dim))
+        t = [i for i in items if i is not None]
+        return LayerStatement(name=str(t[0]), args=[int(str(t[1])), int(str(t[2])), int(str(t[3]))])
+
     def layer_no_args(self, items):
         # NAME
         t = [i for i in items if i is not None]
