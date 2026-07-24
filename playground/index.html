@@ -1,0 +1,465 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Neuva Playground</title>
+<meta name="description" content="Run Neuva — a programming language built purely for Machine Learning — right in your browser." />
+<style>
+  :root {
+    --bg: #1e1e1e;
+    --bg-panel: #252526;
+    --bg-terminal: #141414;
+    --fg: #d4d4d4;
+    --fg-dim: #8a8a8a;
+    --border: #3c3c3c;
+    --accent: #7c3aed;
+    --accent-hover: #9159f5;
+    --blue: #3b82f6;
+    --red: #ef4444;
+    --green: #10b981;
+    --amber: #f59e0b;
+    --mono: "Cascadia Code", "Fira Code", "JetBrains Mono", Consolas, "Courier New", monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    height: 100%;
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  header {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    padding: 0.85rem 1.25rem;
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  header .logo {
+    font-size: 1.15rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--fg);
+  }
+
+  header .logo span { color: var(--accent); }
+
+  header .tagline {
+    font-size: 0.85rem;
+    color: var(--fg-dim);
+  }
+
+  header .spacer { flex: 1; }
+
+  header a.repo-link {
+    font-size: 0.8rem;
+    color: var(--fg-dim);
+    text-decoration: none;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.3rem 0.6rem;
+  }
+  header a.repo-link:hover { color: var(--fg); border-color: var(--fg-dim); }
+
+  main {
+    flex: 1;
+    display: flex;
+    min-height: 0;
+  }
+
+  .panel {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .editor-panel { flex: 1.1; border-right: 1px solid var(--border); }
+  .output-panel { flex: 0.9; }
+
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .toolbar .title {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--fg-dim);
+    margin-right: auto;
+  }
+
+  select, button {
+    font-family: inherit;
+    font-size: 0.85rem;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: #2d2d2d;
+    color: var(--fg);
+    padding: 0.35rem 0.6rem;
+    cursor: pointer;
+  }
+
+  select:hover, button:hover:not(:disabled) { border-color: var(--fg-dim); }
+  select:focus, button:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  button.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: white;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  button.primary:hover:not(:disabled) { background: var(--accent-hover); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  #editor {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+  }
+
+  /* CodeMirror sizing */
+  .cm-editor { height: 100%; font-size: 14px; }
+  .cm-scroller { font-family: var(--mono) !important; line-height: 1.5; }
+
+  #output-wrap {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    background: var(--bg-terminal);
+  }
+
+  #output {
+    margin: 0;
+    padding: 0.85rem 1rem;
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: var(--fg);
+  }
+
+  #output .placeholder { color: var(--fg-dim); font-style: italic; }
+  #output .error-line { color: #ff6b6b; }
+  #output .run-marker { color: var(--green); }
+
+  .spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255, 255, 255, 0.35);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    flex-shrink: 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  #loading-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(20, 20, 20, 0.94);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    z-index: 100;
+    transition: opacity 0.25s ease;
+  }
+  #loading-overlay.hidden { opacity: 0; pointer-events: none; }
+
+  #loading-overlay .spinner {
+    width: 34px;
+    height: 34px;
+    border-width: 3px;
+    border-color: rgba(124, 58, 237, 0.25);
+    border-top-color: var(--accent);
+  }
+
+  #loading-overlay .loading-text {
+    color: var(--fg);
+    font-size: 0.95rem;
+  }
+  #loading-overlay .loading-sub {
+    color: var(--fg-dim);
+    font-size: 0.8rem;
+  }
+
+  @media (max-width: 820px) {
+    main { flex-direction: column; }
+    .editor-panel { border-right: none; border-bottom: 1px solid var(--border); }
+    .editor-panel, .output-panel { flex: 1; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Neuva<span>::playground</span></div>
+  <div class="tagline">A programming language built purely for Machine Learning — simple like Python, clear like Rust.</div>
+  <div class="spacer"></div>
+  <a class="repo-link" href="https://github.com/" target="_blank" rel="noopener">View on GitHub</a>
+</header>
+
+<main>
+  <section class="panel editor-panel">
+    <div class="toolbar">
+      <span class="title">Editor</span>
+      <select id="example-select" aria-label="Load example program">
+        <option value="" disabled selected>Load example…</option>
+      </select>
+      <button id="run-btn" class="primary" disabled title="Loading Python runtime…">
+        <span id="run-spinner" class="spinner" style="display:none;"></span>
+        <span id="run-label">Run ▶</span>
+      </button>
+    </div>
+    <div id="editor"></div>
+  </section>
+
+  <section class="panel output-panel">
+    <div class="toolbar">
+      <span class="title">Output</span>
+      <button id="clear-btn">Clear</button>
+    </div>
+    <div id="output-wrap"><pre id="output"><span class="placeholder">Output will appear here after you click Run.</span></pre></div>
+  </section>
+</main>
+
+<div id="loading-overlay">
+  <div class="spinner"></div>
+  <div class="loading-text">Starting the Neuva playground…</div>
+  <div class="loading-sub" id="loading-sub">Loading Python runtime (Pyodide via WebAssembly)</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
+<script type="module">
+  import { EditorState } from "https://esm.sh/@codemirror/state@6";
+  import {
+    EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter,
+  } from "https://esm.sh/@codemirror/view@6";
+  import { defaultKeymap, history, historyKeymap, indentWithTab } from "https://esm.sh/@codemirror/commands@6";
+  import {
+    StreamLanguage, syntaxHighlighting, HighlightStyle, indentOnInput, bracketMatching,
+  } from "https://esm.sh/@codemirror/language@6";
+  import { closeBrackets, closeBracketsKeymap } from "https://esm.sh/@codemirror/autocomplete@6";
+  import { tags } from "https://esm.sh/@lezer/highlight@1";
+
+  import { EXAMPLES } from "./examples.js";
+
+  // ── Neuva syntax highlighting (CodeMirror 6 StreamLanguage) ─────────────
+
+  const ML_KEYWORDS = new Set(["model", "layer", "train", "output", "save", "predict"]);
+  const GENERAL_KEYWORDS = new Set([
+    "let", "print", "import", "on", "for", "in", "epochs", "lr_schedule", "early_stop",
+    "lr", "loss", "to", "fn", "return", "if", "else", "while", "and", "or",
+    "int", "float", "bool", "string", "tensor", "matrix", "true", "false",
+  ]);
+
+  const neuvaMode = {
+    startState() { return {}; },
+    token(stream) {
+      if (stream.eatSpace()) return null;
+      if (stream.match(/^#.*/)) return "comment";
+      if (stream.match(/^"[^"\\]*"/)) return "string";
+      if (stream.match(/^[0-9]+(\.[0-9]*)?/)) return "number";
+      if (stream.match(/^->/)) return null;
+      const wordMatch = stream.match(/^[a-zA-Z_][a-zA-Z0-9_]*/);
+      if (wordMatch) {
+        const word = wordMatch[0];
+        if (ML_KEYWORDS.has(word)) return "builtin";
+        if (GENERAL_KEYWORDS.has(word)) return "keyword";
+        return "variableName";
+      }
+      if (stream.match(/^(==|!=|<=|>=)/)) return null;
+      if (stream.next()) return null;
+      return null;
+    },
+  };
+
+  const neuvaLanguage = StreamLanguage.define(neuvaMode);
+
+  const neuvaHighlightStyle = HighlightStyle.define([
+    { tag: tags.keyword, color: "#c586c0" },
+    { tag: tags.standard(tags.name), color: "#f44747", fontWeight: "600" },
+    { tag: tags.string, color: "#ce9178" },
+    { tag: tags.comment, color: "#808080", fontStyle: "italic" },
+    { tag: tags.number, color: "#569cd6" },
+  ]);
+
+  const neuvaTheme = EditorView.theme({
+    "&": { backgroundColor: "var(--bg)", color: "var(--fg)", height: "100%" },
+    ".cm-content": { caretColor: "#fff" },
+    ".cm-gutters": { backgroundColor: "var(--bg)", color: "#5a5a5a", border: "none" },
+    ".cm-activeLine": { backgroundColor: "rgba(255,255,255,0.04)" },
+    ".cm-activeLineGutter": { backgroundColor: "rgba(255,255,255,0.06)" },
+    ".cm-selectionBackground, ::selection": { backgroundColor: "rgba(124,58,237,0.35) !important" },
+    "&.cm-focused .cm-cursor": { borderLeftColor: "#fff" },
+  }, { dark: true });
+
+  const runKeymap = keymap.of([
+    {
+      key: "Mod-Enter",
+      run: () => { runCode(); return true; },
+    },
+    indentWithTab,
+    ...closeBracketsKeymap,
+    ...defaultKeymap,
+    ...historyKeymap,
+  ]);
+
+  const startDoc = EXAMPLES["Hello World"];
+
+  const view = new EditorView({
+    state: EditorState.create({
+      doc: startDoc,
+      extensions: [
+        lineNumbers(),
+        highlightActiveLine(),
+        highlightActiveLineGutter(),
+        history(),
+        indentOnInput(),
+        bracketMatching(),
+        closeBrackets(),
+        neuvaLanguage,
+        syntaxHighlighting(neuvaHighlightStyle),
+        neuvaTheme,
+        runKeymap,
+        EditorView.lineWrapping,
+      ],
+    }),
+    parent: document.getElementById("editor"),
+  });
+
+  // ── Example dropdown ─────────────────────────────────────────────────
+
+  const select = document.getElementById("example-select");
+  for (const name of Object.keys(EXAMPLES)) {
+    const opt = document.createElement("option");
+    opt.value = name;
+    opt.textContent = name;
+    select.appendChild(opt);
+  }
+  select.addEventListener("change", () => {
+    const code = EXAMPLES[select.value];
+    if (code === undefined) return;
+    view.dispatch({
+      changes: { from: 0, to: view.state.doc.length, insert: code },
+    });
+    view.focus();
+  });
+
+  // ── Output panel ─────────────────────────────────────────────────────
+
+  const outputEl = document.getElementById("output");
+
+  function renderOutput(text) {
+    outputEl.textContent = "";
+    if (!text) {
+      const span = document.createElement("span");
+      span.className = "placeholder";
+      span.textContent = "(program produced no output)";
+      outputEl.appendChild(span);
+      return;
+    }
+    const lines = text.split("\n");
+    const frag = document.createDocumentFragment();
+    lines.forEach((line, i) => {
+      const isError = /^\[Line \d+/.test(line) || /^Error:/.test(line) || /^\s+\^/.test(line);
+      if (isError) {
+        const span = document.createElement("span");
+        span.className = "error-line";
+        span.textContent = line;
+        frag.appendChild(span);
+      } else {
+        frag.appendChild(document.createTextNode(line));
+      }
+      if (i < lines.length - 1) frag.appendChild(document.createTextNode("\n"));
+    });
+    outputEl.appendChild(frag);
+  }
+
+  document.getElementById("clear-btn").addEventListener("click", () => {
+    renderOutput("");
+  });
+
+  // ── Pyodide setup ────────────────────────────────────────────────────
+
+  const runBtn = document.getElementById("run-btn");
+  const runSpinner = document.getElementById("run-spinner");
+  const runLabel = document.getElementById("run-label");
+  const loadingOverlay = document.getElementById("loading-overlay");
+  const loadingSub = document.getElementById("loading-sub");
+
+  let pyodide = null;
+
+  async function initPyodide() {
+    try {
+      pyodide = await loadPyodide();
+      loadingSub.textContent = "Loading the Neuva interpreter…";
+      const res = await fetch("./neuva_web.py");
+      if (!res.ok) throw new Error(`could not load neuva_web.py (${res.status})`);
+      const src = await res.text();
+      pyodide.runPython(src);
+
+      runBtn.disabled = false;
+      runBtn.title = "Run this program (Ctrl/Cmd + Enter)";
+      loadingOverlay.classList.add("hidden");
+      setTimeout(() => loadingOverlay.remove(), 300);
+    } catch (err) {
+      loadingSub.textContent = "Failed to start: " + err.message;
+      loadingSub.style.color = "#ff6b6b";
+    }
+  }
+
+  function setRunning(isRunning) {
+    runBtn.disabled = isRunning;
+    runSpinner.style.display = isRunning ? "inline-block" : "none";
+    runLabel.textContent = isRunning ? "Running…" : "Run ▶";
+  }
+
+  async function runCode() {
+    if (!pyodide || runBtn.disabled) return;
+    const code = view.state.doc.toString();
+    setRunning(true);
+    try {
+      pyodide.globals.set("__neuva_user_code", code);
+      const result = pyodide.runPython("run_neuva(__neuva_user_code)");
+      renderOutput(result);
+    } catch (err) {
+      renderOutput("Playground error: " + (err && err.message ? err.message : String(err)));
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  runBtn.addEventListener("click", runCode);
+
+  initPyodide();
+</script>
+
+</body>
+</html>
