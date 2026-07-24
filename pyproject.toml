@@ -37,4 +37,4 @@ where = ["."]
 include = ["neuva*"]
 
 [tool.setuptools.package-data]
-"neuva" = ["parser/*.lark"]
+"neuva" = ["parser/*.lark", "stdlib/*.nva"]

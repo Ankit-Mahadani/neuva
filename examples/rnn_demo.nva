@@ -1,0 +1,22 @@
+# RNN / LSTM demo — a simple sequence model
+# iris.csv is tabular, not truly sequential, but this shows rnn/lstm layers plug
+# into the same model + training pipeline as dense layers (each row is treated
+# as a length-1 sequence).
+
+let data = load("examples/data/iris.csv")
+let train_data, test_data = data.split(0.8)
+
+model SeqClassifier {
+    layer rnn(4 -> 16)
+    layer dense(16 -> 3, softmax)
+}
+
+train SeqClassifier on train_data for 5 epochs, lr = 0.01, loss = crossentropy
+let acc = accuracy(SeqClassifier, test_data)
+print "RNN classifier accuracy:", acc
+
+model LSTMClassifier {
+    layer lstm(4 -> 16, 2)
+    layer dense(16 -> 3, softmax)
+}
+print LSTMClassifier

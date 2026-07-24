@@ -1,0 +1,29 @@
+# Neuva stdlib — metrics
+# Small helper functions built on top of the precision/recall/f1_score/accuracy builtins.
+
+fn f1_from_pr(p, r) {
+    if p + r == 0 {
+        return 0
+    }
+    return 2 * (p * r) / (p + r)
+}
+
+fn average(values) {
+    let total = 0
+    for v in values {
+        let total = total + v
+    }
+    return total / len(values)
+}
+
+fn report(model, data) {
+    let acc = accuracy(model, data)
+    print "Accuracy:", acc
+    let p = precision(model, data)
+    let r = recall(model, data)
+    let f1 = f1_score(model, data)
+    print "Precision (per class):", p
+    print "Recall (per class):", r
+    print "F1 (per class):", f1
+    return acc
+}

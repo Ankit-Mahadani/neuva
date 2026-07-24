@@ -1,0 +1,11 @@
+# Multi-output model demo — a shared trunk with two named output heads.
+# Note: training multi-output models with per-head losses isn't supported yet,
+# this demonstrates definition, the forward pass shape, and print formatting.
+
+model MultiTask {
+    layer dense(10 -> 64, relu)
+    output classification: dense(64 -> 3, softmax)
+    output regression: dense(64 -> 1, linear)
+}
+
+print MultiTask

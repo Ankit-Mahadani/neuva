@@ -72,9 +72,16 @@ class LayerStatement(Node):
 
 
 @dataclass
+class OutputLayerStatement(Node):
+    output_name: str = ""
+    layer: LayerStatement = None
+
+
+@dataclass
 class ModelStatement(Node):
     name: str = ""
     layers: List[LayerStatement] = field(default_factory=list)
+    outputs: List[OutputLayerStatement] = field(default_factory=list)
 
 
 @dataclass
@@ -162,3 +169,8 @@ class ExprStatement(Node):
 @dataclass
 class Program(Node):
     body: List[Any] = field(default_factory=list)
+
+
+@dataclass
+class ImportStatement(Node):
+    module: str = ""

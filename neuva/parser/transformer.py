@@ -5,7 +5,7 @@ from .ast_nodes import (
     FnStatement, Parameter, ReturnStatement, IfStatement, ForStatement,
     WhileStatement, ExprStatement, BinaryExpr, CallExpr, MethodCallExpr,
     VarExpr, NumberLiteral, FloatLiteral, StringLiteral, BoolLiteral,
-    ListLiteral, IndexExpr,
+    ListLiteral, IndexExpr, OutputLayerStatement, ImportStatement,
 )
 
 
@@ -42,7 +42,8 @@ class NeuvaTransformer(Transformer):
     def model_def(self, items):
         name = str(items[0])
         layers = [i for i in items[1:] if isinstance(i, LayerStatement)]
-        return ModelStatement(name=name, layers=layers)
+        outputs = [i for i in items[1:] if isinstance(i, OutputLayerStatement)]
+        return ModelStatement(name=name, layers=layers, outputs=outputs)
 
     def layer_dense(self, items):
         # NAME NUMBER ARROW NUMBER NAME  (NEWLINE→None filtered)
@@ -53,6 +54,11 @@ class NeuvaTransformer(Transformer):
         # NAME NUMBER ARROW NUMBER NUMBER
         t = [i for i in items if i is not None]
         return LayerStatement(name=str(t[0]), args=[int(str(t[1])), int(str(t[3])), int(str(t[4]))])
+
+    def layer_seq(self, items):
+        # NAME NUMBER ARROW NUMBER  (rnn/lstm without explicit num_layers)
+        t = [i for i in items if i is not None]
+        return LayerStatement(name=str(t[0]), args=[int(str(t[1])), int(str(t[3]))])
 
     def layer_pool(self, items):
         # NAME NUMBER  (number may be int like pool size or float like dropout rate)
@@ -65,6 +71,13 @@ class NeuvaTransformer(Transformer):
         # NAME
         t = [i for i in items if i is not None]
         return LayerStatement(name=str(t[0]), args=[])
+
+    def output_dense(self, items):
+        # output NAME ":" NAME "(" NUMBER ARROW NUMBER "," NAME ")"
+        t = [i for i in items if i is not None]
+        output_name = str(t[0])
+        layer = LayerStatement(name=str(t[1]), args=[int(str(t[2])), int(str(t[4])), str(t[5])])
+        return OutputLayerStatement(output_name=output_name, layer=layer)
 
     def train_body(self, items):
         clean = [i for i in items if i is not None]
@@ -86,14 +99,23 @@ class NeuvaTransformer(Transformer):
         options = [i for i in clean[3:] if isinstance(i, TrainOption)]
         return TrainStatement(model=model, data=data, epochs=epochs, options=options)
 
-    def train_opt(self, items):
-        token = items[0]
-        if token.type == "NAME":
-            return TrainOption(key="loss", value=str(token))
-        return TrainOption(key="lr", value=float(str(token)))
+    def opt_lr(self, items):
+        return TrainOption(key="lr", value=float(str(items[0])))
+
+    def opt_loss(self, items):
+        return TrainOption(key="loss", value=str(items[0]))
+
+    def opt_lr_schedule(self, items):
+        return TrainOption(key="lr_schedule", value=str(items[0]))
+
+    def opt_early_stop(self, items):
+        return TrainOption(key="early_stop", value=int(str(items[0])))
 
     def save_stmt(self, items):
         return SaveStatement(model=str(items[0]), path=items[1])
+
+    def import_stmt(self, items):
+        return ImportStatement(module=str(items[0]))
 
     def predict_stmt(self, items):
         return PredictStatement(model=str(items[0]), data=str(items[1]))
@@ -117,7 +139,8 @@ class NeuvaTransformer(Transformer):
         return items
 
     def param(self, items):
-        return Parameter(name=str(items[0]), type_ann=items[1])
+        type_ann = items[1] if len(items) > 1 else None
+        return Parameter(name=str(items[0]), type_ann=type_ann)
 
     def return_stmt(self, items):
         return ReturnStatement(value=items[0] if items else None)

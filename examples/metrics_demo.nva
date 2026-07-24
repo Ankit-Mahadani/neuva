@@ -1,0 +1,15 @@
+# Evaluation metrics demo — precision, recall, F1, confusion matrix
+model Classifier {
+    layer dense(4 -> 16, relu)
+    layer dense(16 -> 3, softmax)
+}
+
+let data = load("examples/data/iris.csv")
+let train_data, test_data = data.split(0.8)
+
+train Classifier on train_data for 20 epochs, lr = 0.01, loss = crossentropy
+
+print "Precision:", precision(Classifier, test_data)
+print "Recall:", recall(Classifier, test_data)
+print "F1:", f1_score(Classifier, test_data)
+confusion_matrix(Classifier, test_data)

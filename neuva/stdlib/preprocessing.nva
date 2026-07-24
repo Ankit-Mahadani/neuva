@@ -1,0 +1,32 @@
+# Neuva stdlib — preprocessing
+# Normalization and one-hot encoding helpers.
+
+fn normalize_data(data) {
+    return data.normalize()
+}
+
+fn shuffle_data(data) {
+    return data.shuffle()
+}
+
+fn one_hot(index, num_classes) {
+    let result = []
+    let i = 0
+    while i < num_classes {
+        if i == index {
+            let result = result + [1]
+        } else {
+            let result = result + [0]
+        }
+        let i = i + 1
+    }
+    return result
+}
+
+fn one_hot_batch(indices, num_classes) {
+    let result = []
+    for idx in indices {
+        let result = result + [one_hot(idx, num_classes)]
+    }
+    return result
+}

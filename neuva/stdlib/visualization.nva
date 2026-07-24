@@ -1,0 +1,16 @@
+# Neuva stdlib — visualization
+# print_loss_curve draws a simple ASCII bar chart of a list of loss values.
+# For a richer chart, the built-in `print plot(losses)` renders a proper line chart.
+
+fn print_loss_curve(losses) {
+    for loss in losses {
+        let bar = ""
+        let n = loss * 40
+        let i = 0
+        while i < n {
+            let bar = bar + "#"
+            let i = i + 1
+        }
+        print bar, loss
+    }
+}

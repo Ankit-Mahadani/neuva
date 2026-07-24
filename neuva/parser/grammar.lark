@@ -13,59 +13,67 @@ statement: print_stmt NEWLINE
          | if_stmt
          | for_stmt
          | while_stmt
+         | import_stmt NEWLINE
          | expr_stmt NEWLINE
          | NEWLINE
 
 // Print statement
-print_stmt: "print" expr ("," expr)*
+print_stmt: _PRINT expr ("," expr)*
 
 // Variable declaration
-let_stmt: "let" NAME ("," NAME)* (":" type)? "=" expr
+let_stmt: _LET NAME ("," NAME)* (":" type)? "=" expr
+
+// Import statement — loads a stdlib module into the current environment
+import_stmt: _IMPORT NAME
 
 // Model definition
-model_def: "model" NAME "{" NEWLINE layer_stmt* "}"  NEWLINE
+model_def: _MODEL NAME "{" NEWLINE layer_stmt* "}"  NEWLINE
 
-layer_stmt: "layer" NAME "(" NUMBER ARROW NUMBER "," NAME   ")" NEWLINE  -> layer_dense
-          | "layer" NAME "(" NUMBER ARROW NUMBER "," NUMBER ")" NEWLINE  -> layer_conv
-          | "layer" NAME "(" NUMBER ")"                         NEWLINE  -> layer_pool
-          | "layer" NAME                                        NEWLINE  -> layer_no_args
+layer_stmt: _LAYER NAME "(" NUMBER ARROW NUMBER "," NAME   ")" NEWLINE  -> layer_dense
+          | _LAYER NAME "(" NUMBER ARROW NUMBER "," NUMBER ")" NEWLINE  -> layer_conv
+          | _LAYER NAME "(" NUMBER ARROW NUMBER ")"            NEWLINE  -> layer_seq
+          | _LAYER NAME "(" NUMBER ")"                         NEWLINE  -> layer_pool
+          | _LAYER NAME                                        NEWLINE  -> layer_no_args
+          | _OUTPUT NAME ":" NAME "(" NUMBER ARROW NUMBER "," NAME ")" NEWLINE -> output_dense
 
 // Train statement
-train_stmt: "train" NAME "on" NAME "for" NUMBER "epochs" ("," train_opt)* NEWLINE
-          | "train" NAME NEWLINE train_body
+train_stmt: _TRAIN NAME _ON NAME _FOR NUMBER _EPOCHS ("," train_opt)* NEWLINE
+          | _TRAIN NAME NEWLINE train_body
 
-train_body: "on" NAME NEWLINE "for" NUMBER "epochs" NEWLINE (train_opt NEWLINE)*
+train_body: _ON NAME NEWLINE _FOR NUMBER _EPOCHS NEWLINE (train_opt NEWLINE)*
 
-train_opt: "lr" "=" (NUMBER | FLOAT)
-         | "loss" "=" NAME
+train_opt: _LR "=" (NUMBER | FLOAT)     -> opt_lr
+         | _LOSS "=" NAME               -> opt_loss
+         | _LR_SCHEDULE "=" NAME        -> opt_lr_schedule
+         | _EARLY_STOP "=" NUMBER       -> opt_early_stop
 
 // Save statement
-save_stmt: "save" NAME "to" expr
+save_stmt: _SAVE NAME _TO expr
 
 // Predict statement
-predict_stmt: "predict" NAME "on" NAME NEWLINE
+predict_stmt: _PREDICT NAME _ON NAME NEWLINE
 
 // Function definition
-func_def: "fn" NAME "(" param_list? ")" ("->" type)? "{" NEWLINE statement* "}" NEWLINE
+func_def: _FN NAME "(" param_list? ")" ("->" type)? "{" NEWLINE statement* "}" NEWLINE
 
 param_list: param ("," param)*
 
-param: NAME ":" type
+param: NAME (":" type)?
 
 // Return statement
-return_stmt: "return" expr?
+return_stmt: _RETURN expr?
 
 // If / else if / else statement
-if_stmt: "if" expr "{" NEWLINE statement* "}" elif_clause* else_clause? NEWLINE
-elif_clause: "else" "if" expr "{" NEWLINE statement* "}"
-else_clause: "else" "{" NEWLINE statement* "}"
+if_stmt: _IF expr "{" NEWLINE statement* "}" elif_clause* else_clause? NEWLINE
+elif_clause: _ELSE _IF expr "{" NEWLINE statement* "}"
+else_clause: _ELSE "{" NEWLINE statement* "}"
 
 // For loop
-for_stmt: "for" NAME "in" expr for_body NEWLINE
+for_stmt: _FOR NAME _IN expr for_body NEWLINE
 for_body: "{" NEWLINE statement* "}"
 
 // While loop
-while_stmt: "while" expr while_body NEWLINE
+while_stmt: _WHILE expr while_body NEWLINE
 while_body: "{" NEWLINE statement* "}"
 
 // Expression statement (standalone call or assignment)
@@ -75,10 +83,10 @@ expr_stmt: expr
 ?expr: or_expr
 
 ?or_expr: and_expr
-        | or_expr "or" and_expr -> or_
+        | or_expr _OR and_expr -> or_
 
 ?and_expr: comparison
-         | and_expr "and" comparison -> and_
+         | and_expr _AND comparison -> and_
 
 ?comparison: sum
            | sum "==" sum -> eq
@@ -124,14 +132,51 @@ literal: INT    -> int_lit
        | BOOL   -> bool_lit
 
 // Types
-type: "int"    -> type_int
-    | "float"  -> type_float
-    | "bool"   -> type_bool
-    | "string" -> type_string
-    | "tensor" -> type_tensor
-    | "matrix" -> type_matrix
+type: _KW_INT    -> type_int
+    | _KW_FLOAT  -> type_float
+    | _KW_BOOL   -> type_bool
+    | _KW_STRING -> type_string
+    | _KW_TENSOR -> type_tensor
+    | _KW_MATRIX -> type_matrix
 
 // Terminals
+// Keywords are anchored with a negative lookahead so they don't swallow the prefix of a
+// longer identifier (e.g. "print_loss_curve" must lex as one NAME, not PRINT + "_loss_curve").
+// The leading underscore keeps them filtered out of the parse tree, matching plain string
+// literals' default behavior.
+_KW_BOUNDARY: /(?![A-Za-z0-9_])/
+_PRINT: "print" _KW_BOUNDARY
+_LET: "let" _KW_BOUNDARY
+_IMPORT: "import" _KW_BOUNDARY
+_MODEL: "model" _KW_BOUNDARY
+_LAYER: "layer" _KW_BOUNDARY
+_OUTPUT: "output" _KW_BOUNDARY
+_TRAIN: "train" _KW_BOUNDARY
+_ON: "on" _KW_BOUNDARY
+_FOR: "for" _KW_BOUNDARY
+_IN: "in" _KW_BOUNDARY
+_EPOCHS: "epochs" _KW_BOUNDARY
+_LR_SCHEDULE: "lr_schedule" _KW_BOUNDARY
+_EARLY_STOP: "early_stop" _KW_BOUNDARY
+_LR: "lr" _KW_BOUNDARY
+_LOSS: "loss" _KW_BOUNDARY
+_SAVE: "save" _KW_BOUNDARY
+_TO: "to" _KW_BOUNDARY
+_PREDICT: "predict" _KW_BOUNDARY
+_FN: "fn" _KW_BOUNDARY
+_RETURN: "return" _KW_BOUNDARY
+_IF: "if" _KW_BOUNDARY
+_ELSE: "else" _KW_BOUNDARY
+_WHILE: "while" _KW_BOUNDARY
+_AND: "and" _KW_BOUNDARY
+_OR: "or" _KW_BOUNDARY
+_KW_INT: "int" _KW_BOUNDARY
+_KW_FLOAT: "float" _KW_BOUNDARY
+_KW_BOOL: "bool" _KW_BOUNDARY
+_KW_STRING: "string" _KW_BOUNDARY
+_KW_TENSOR: "tensor" _KW_BOUNDARY
+_KW_MATRIX: "matrix" _KW_BOUNDARY
+
 BOOL: "true" | "false"
 STRING: "\"" /[^"\\]*/ "\""
 INT: /[0-9]+/

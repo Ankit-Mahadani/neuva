@@ -92,6 +92,72 @@ class DataSet:
         result.columns = self.columns
         return result
 
+    def augment(self):
+        """Random horizontal flip + rotation for image-shaped data (dim >= 3);
+        falls back to simple noise addition otherwise or if torchvision is missing."""
+        if self.X is None:
+            return self
+        X_aug = None
+        if self.X.dim() >= 3:
+            try:
+                import random
+                import torchvision.transforms.functional as TF
+                augmented = []
+                for img in self.X:
+                    if random.random() < 0.5:
+                        img = TF.hflip(img)
+                    img = TF.rotate(img, random.uniform(-15, 15))
+                    augmented.append(img)
+                X_aug = torch.stack(augmented)
+            except ImportError:
+                X_aug = None
+        if X_aug is None:
+            X_aug = self.X + torch.randn_like(self.X) * 0.05
+        result = DataSet(self.name, X_aug, self.y)
+        result.columns = self.columns
+        return result
+
+    def _class_indices(self):
+        classes, counts = torch.unique(self.y, return_counts=True)
+        return {c.item(): (self.y == c).nonzero(as_tuple=True)[0] for c in classes}, counts
+
+    def oversample(self):
+        """Duplicate minority-class samples (with replacement) so every class matches
+        the majority class's count. No-op for regression targets (non-integer y)."""
+        if self.X is None or self.y is None or self.y.dtype != torch.long:
+            return self
+        by_class, counts = self._class_indices()
+        target_count = counts.max().item()
+        idx_parts = []
+        for cls_idx in by_class.values():
+            idx_parts.append(cls_idx)
+            deficit = target_count - len(cls_idx)
+            if deficit > 0:
+                extra = cls_idx[torch.randint(0, len(cls_idx), (deficit,))]
+                idx_parts.append(extra)
+        all_idx = torch.cat(idx_parts)
+        all_idx = all_idx[torch.randperm(len(all_idx))]
+        result = DataSet(self.name, self.X[all_idx], self.y[all_idx])
+        result.columns = self.columns
+        return result
+
+    def undersample(self):
+        """Randomly drop majority-class samples so every class matches the minority
+        class's count. No-op for regression targets (non-integer y)."""
+        if self.X is None or self.y is None or self.y.dtype != torch.long:
+            return self
+        by_class, counts = self._class_indices()
+        target_count = counts.min().item()
+        idx_parts = []
+        for cls_idx in by_class.values():
+            keep = cls_idx[torch.randperm(len(cls_idx))[:target_count]]
+            idx_parts.append(keep)
+        all_idx = torch.cat(idx_parts)
+        all_idx = all_idx[torch.randperm(len(all_idx))]
+        result = DataSet(self.name, self.X[all_idx], self.y[all_idx])
+        result.columns = self.columns
+        return result
+
     def __len__(self) -> int:
         return len(self.X) if self.X is not None else 0
 

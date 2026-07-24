@@ -1,16 +1,103 @@
 import difflib
+import os
 import re
 from typing import Any, Optional
-from neuva.backend.torch_backend import NeuvaModel, NeuvaTrainer, NeuvaDataset, evaluate, evaluate_accuracy, save_model, load_model
+from neuva.backend.torch_backend import (
+    NeuvaModel, NeuvaTrainer, NeuvaDataset, evaluate, evaluate_accuracy, save_model, load_model,
+    mse_fn, mae_fn, crossentropy_fn, binary_crossentropy_fn, LOSS_NAMES,
+    precision, recall, f1_score, confusion_matrix,
+)
 from neuva.backend.data_loader import DataSet
+from neuva.parser import NeuvaParser
 from neuva.parser.ast_nodes import (
     Program, LetStatement, PrintStatement, ExprStatement,
     NumberLiteral, FloatLiteral, StringLiteral, BoolLiteral,
     VarExpr, BinaryExpr, CallExpr, MethodCallExpr,
     IfStatement, ForStatement, WhileStatement, FnStatement, ReturnStatement,
     ModelStatement, TrainStatement, SaveStatement, PredictStatement,
-    ListLiteral, IndexExpr,
+    ListLiteral, IndexExpr, ImportStatement,
 )
+
+_STDLIB_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "stdlib")
+
+
+class TableView:
+    """Marker returned by the `table()` builtin so `print` can render it as an ASCII table."""
+    def __init__(self, data: Any):
+        self.data = data
+
+
+class PlotView:
+    """Marker returned by the `plot()` builtin so `print` can render it as an ASCII line chart."""
+    def __init__(self, values: Any):
+        self.values = values
+
+
+def _fmt_cell(v: Any) -> str:
+    if isinstance(v, float):
+        return f"{v:.4f}"
+    return str(v)
+
+
+def render_table(dataset: Any, max_rows: int = 10) -> str:
+    X = getattr(dataset, "X", None)
+    if X is None:
+        rows = dataset if isinstance(dataset, list) else []
+        if not rows:
+            return "(empty table)"
+        headers = [f"col{i}" for i in range(len(rows[0]))]
+        data_rows = [[_fmt_cell(v) for v in row] for row in rows[:max_rows]]
+        total = len(rows)
+    else:
+        y = getattr(dataset, "y", None)
+        columns = list(getattr(dataset, "columns", None) or [])
+        n_features = X.shape[1] if X.dim() > 1 else 1
+        headers = columns[:n_features] if len(columns) >= n_features else [f"col{i}" for i in range(n_features)]
+        if y is not None:
+            headers = headers + [columns[-1] if len(columns) > n_features else "target"]
+        total = len(X)
+        data_rows = []
+        for i in range(min(max_rows, total)):
+            row = [_fmt_cell(v) for v in X[i].tolist()] if X.dim() > 1 else [_fmt_cell(X[i].item())]
+            if y is not None:
+                row.append(_fmt_cell(y[i].item()))
+            data_rows.append(row)
+
+    widths = [len(h) for h in headers]
+    for row in data_rows:
+        for i, cell in enumerate(row):
+            widths[i] = max(widths[i], len(cell))
+
+    def hline(left, mid, right):
+        return left + mid.join("─" * (w + 2) for w in widths) + right
+
+    def fmt_row(cells):
+        return "│" + "│".join(f" {c.rjust(widths[i])} " for i, c in enumerate(cells)) + "│"
+
+    lines = [hline("┌", "┬", "┐"), fmt_row(headers), hline("├", "┼", "┤")]
+    lines += [fmt_row(r) for r in data_rows]
+    lines.append(hline("└", "┴", "┘"))
+    if total > max_rows:
+        lines.append(f"... {total - max_rows} more rows")
+    return "\n".join(lines)
+
+
+def render_plot(values: Any, height: int = 10) -> str:
+    values = [float(v) for v in values]
+    if not values:
+        return "(no data)"
+    lo, hi = min(values), max(values)
+    rng = (hi - lo) or 1.0
+    width = len(values)
+    grid = [[" "] * width for _ in range(height)]
+    for x, v in enumerate(values):
+        norm = (v - lo) / rng
+        row = height - 1 - round(norm * (height - 1))
+        grid[row][x] = "*"
+    lines = ["".join(r) for r in grid]
+    lines.append("─" * width)
+    lines.append(f"min={lo:.4f}  max={hi:.4f}  n={len(values)}")
+    return "\n".join(lines)
 
 
 def find_similar_name(name: str, available_names: list) -> Optional[str]:
@@ -111,6 +198,22 @@ class NeuvaInterpreter:
         self.env.set("normalize", lambda: DataSet())
         self.env.set("shuffle",   lambda: DataSet())
 
+        # Loss functions, callable directly (e.g. inside a custom `fn` loss)
+        self.env.set("mse", mse_fn)
+        self.env.set("mae", mae_fn)
+        self.env.set("crossentropy", crossentropy_fn)
+        self.env.set("binary_crossentropy", binary_crossentropy_fn)
+
+        # Evaluation metrics
+        self.env.set("precision", lambda model, data: precision(model, data))
+        self.env.set("recall", lambda model, data: recall(model, data))
+        self.env.set("f1_score", lambda model, data: f1_score(model, data))
+        self.env.set("confusion_matrix", lambda model, data: confusion_matrix(model, data))
+
+        # print table(...) / print plot(...)
+        self.env.set("table", lambda d: TableView(d))
+        self.env.set("plot", lambda v: PlotView(v))
+
     # ── dispatch ───────────────────────────────────────────────────────────
 
     def visit(self, node) -> Any:
@@ -159,18 +262,41 @@ class NeuvaInterpreter:
         data_obj = self.env.get(node.data)
 
         lr = 0.001
-        loss_fn = "mse"
+        loss_name = "mse"
+        lr_schedule = "none"
+        early_stop = None
         for opt in node.options:
             if opt.key == "lr":
                 lr = float(opt.value)
             elif opt.key == "loss":
-                loss_fn = str(opt.value)
+                loss_name = str(opt.value)
+            elif opt.key == "lr_schedule":
+                lr_schedule = str(opt.value)
+            elif opt.key == "early_stop":
+                early_stop = int(opt.value)
 
-        in_size = model_node.layers[0].args[0] if model_node.layers else 1
-        neuva_model = NeuvaModel(model_node.layers)
+        if loss_name in LOSS_NAMES:
+            loss_fn = loss_name
+        else:
+            fn_obj = self.env.get(loss_name, line=getattr(node, "line", None), col=getattr(node, "col", None))
+            if not isinstance(fn_obj, NeuvaFunction):
+                raise RuntimeError_(
+                    f"'{loss_name}' is not a valid loss — expected a built-in "
+                    f"({', '.join(sorted(LOSS_NAMES))}) or a function name",
+                    getattr(node, "line", None), getattr(node, "col", None),
+                )
+            loss_fn = lambda pred, target, _fn=fn_obj: self._call_function(_fn, [pred, target])
+
+        in_size = model_node.layers[0].args[0] if model_node.layers else (
+            model_node.outputs[0].layer.args[0] if model_node.outputs else 1
+        )
+        neuva_model = NeuvaModel(model_node.layers, outputs=model_node.outputs)
         neuva_model.model_name = node.model
         dataset = NeuvaDataset(data_obj, in_size=in_size)
-        NeuvaTrainer().train(neuva_model, dataset, node.epochs, lr=lr, loss_fn=loss_fn)
+        NeuvaTrainer().train(
+            neuva_model, dataset, node.epochs, lr=lr, loss_fn=loss_fn,
+            lr_schedule=lr_schedule, early_stop=early_stop,
+        )
         self.env.set(node.model, neuva_model)
 
     def visit_SaveStatement(self, node: SaveStatement) -> None:
@@ -183,6 +309,17 @@ class NeuvaInterpreter:
     def visit_PredictStatement(self, node: PredictStatement) -> None:
         pass
 
+    def visit_ImportStatement(self, node: ImportStatement) -> None:
+        module_path = os.path.join(_STDLIB_DIR, f"{node.module}.nva")
+        if not os.path.isfile(module_path):
+            raise RuntimeError_(
+                f"stdlib module '{node.module}' not found",
+                getattr(node, "line", None), getattr(node, "col", None),
+            )
+        tree = NeuvaParser().parse_file(module_path)
+        for stmt in tree.body:
+            self.visit(stmt)
+
     def visit_PrintStatement(self, node: PrintStatement) -> None:
         values = [self.evaluate(e) for e in node.exprs]
         if len(values) == 1:
@@ -193,13 +330,30 @@ class NeuvaInterpreter:
             if isinstance(val, NeuvaModel):
                 print(self._neuva_model_summary(val))
                 return
+            if isinstance(val, TableView):
+                print(render_table(val.data))
+                return
+            if isinstance(val, PlotView):
+                print(render_plot(val.values))
+                return
         print(*values)
+
+    @staticmethod
+    def _boxify(lines: list) -> str:
+        width = max(len(l) for l in lines)
+        top = "┌" + "─" * (width + 2) + "┐"
+        bottom = "└" + "─" * (width + 2) + "┘"
+        body = [f"│ {l.ljust(width)} │" for l in lines]
+        return "\n".join([top] + body + [bottom])
 
     def _model_stmt_summary(self, model: ModelStatement) -> str:
         lines = [f"Model: {model.name}"]
         total = 0
         for layer in model.layers:
-            if len(layer.args) >= 3:
+            if layer.name in ("rnn", "lstm") and len(layer.args) >= 2:
+                num_layers = layer.args[2] if len(layer.args) >= 3 else 1
+                lines.append(f"  {layer.name}({layer.args[0]} -> {layer.args[1]}, num_layers={num_layers})")
+            elif len(layer.args) >= 3:
                 lines.append(f"  {layer.name}({layer.args[0]} -> {layer.args[1]}, {layer.args[2]})")
                 try:
                     total += int(float(str(layer.args[0]))) * int(float(str(layer.args[1]))) + int(float(str(layer.args[1])))
@@ -209,8 +363,11 @@ class NeuvaInterpreter:
                 lines.append(f"  {layer.name}({layer.args[0]})")
             else:
                 lines.append(f"  {layer.name}")
+        for out in model.outputs:
+            a = out.layer.args
+            lines.append(f"  output {out.output_name}: {out.layer.name}({a[0]} -> {a[1]}, {a[2]})")
         lines.append(f"Total parameters: {total}")
-        return "\n".join(lines)
+        return self._boxify(lines)
 
     def _neuva_model_summary(self, model: NeuvaModel) -> str:
         name = getattr(model, "model_name", "(trained)")
@@ -228,11 +385,17 @@ class NeuvaInterpreter:
                 lines.append(f"  conv({layer.in_channels} -> {layer.out_channels}, {layer.kernel_size})")
             elif ltype == "Flatten":
                 lines.append("  flatten")
+            elif ltype == "_RNNWrapper":
+                lines.append(f"  {layer.kind}({layer.input_size} -> {layer.hidden_size}, num_layers={layer.num_layers})")
             else:
                 lines.append(f"  {ltype.lower()}")
+        for oname in getattr(model, "output_names", []):
+            head = model.output_heads[oname]
+            act = model.output_activation_names.get(oname, "linear")
+            lines.append(f"  output {oname}: dense({head.in_features} -> {head.out_features}, {act})")
         total = sum(p.numel() for p in model.parameters())
         lines.append(f"Total parameters: {total}")
-        return "\n".join(lines)
+        return self._boxify(lines)
 
     def visit_ExprStatement(self, node: ExprStatement) -> Any:
         return self.evaluate(node.expr)
@@ -354,33 +517,32 @@ class NeuvaInterpreter:
 
         return fn(left, right)
 
+    def _call_function(self, fn: "NeuvaFunction", args: list, line: int = None, col: int = None) -> Any:
+        if len(args) != len(fn.params):
+            raise RuntimeError_(f"'{fn.name}' expects {len(fn.params)} args, got {len(args)}", line, col)
+        local_env = Environment(parent=fn.closure)
+        for param, val in zip(fn.params, args):
+            local_env.set(param.name, val)
+        saved = self.env
+        self.env = local_env
+        try:
+            for stmt in fn.body:
+                self.visit(stmt)
+            return None
+        except ReturnSignal as sig:
+            return sig.value
+        finally:
+            self.env = saved
+
     def eval_CallExpr(self, node: CallExpr) -> Any:
         callee = self.evaluate(node.callee)
         args = [self.evaluate(a) for a in node.args]
 
-        if callable(callee):
+        if callable(callee) and not isinstance(callee, NeuvaFunction):
             return callee(*args)
 
         if isinstance(callee, NeuvaFunction):
-            if len(args) != len(callee.params):
-                raise RuntimeError_(
-                    f"'{callee.name}' expects {len(callee.params)} args, got {len(args)}",
-                    getattr(node, "line", None),
-                    getattr(node, "col", None),
-                )
-            local_env = Environment(parent=callee.closure)
-            for param, val in zip(callee.params, args):
-                local_env.set(param.name, val)
-            saved = self.env
-            self.env = local_env
-            try:
-                for stmt in callee.body:
-                    self.visit(stmt)
-                return None
-            except ReturnSignal as sig:
-                return sig.value
-            finally:
-                self.env = saved
+            return self._call_function(callee, args, getattr(node, "line", None), getattr(node, "col", None))
 
         raise RuntimeError_(
             f"'{callee}' is not callable",

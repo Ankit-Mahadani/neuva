@@ -1,0 +1,12 @@
+# Learning-rate scheduling + early stopping demo
+model Net {
+    layer dense(10 -> 32, relu)
+    layer dense(32 -> 1, sigmoid)
+}
+
+let data = load("examples/data/spam.csv")
+let train_data, test_data = data.split(0.8)
+
+train Net on train_data for 100 epochs, lr = 0.01, loss = binary_crossentropy, lr_schedule = step, early_stop = 5
+let acc = accuracy(Net, test_data)
+print "Accuracy:", acc

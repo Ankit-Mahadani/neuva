@@ -1,0 +1,12 @@
+# Data augmentation demo — oversample / undersample / augment
+let data = load("examples/data/spam.csv")
+print "Original size:", len(data)
+
+let balanced = data.oversample()
+print "Oversampled size:", len(balanced)
+
+let reduced = data.undersample()
+print "Undersampled size:", len(reduced)
+
+let noisy = data.augment()
+print "Augmented size:", len(noisy)
