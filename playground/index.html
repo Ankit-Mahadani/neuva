@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
+<base href="/neuva/">
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Neuva Playground</title>
@@ -222,7 +223,7 @@
   <div class="logo">Neuva<span>::playground</span></div>
   <div class="tagline">A programming language built purely for Machine Learning — simple like Python, clear like Rust.</div>
   <div class="spacer"></div>
-  <a class="repo-link" href="https://github.com/" target="_blank" rel="noopener">View on GitHub</a>
+  <a class="repo-link" href="https://github.com/Ankit-Mahadani/neuva" target="_blank" rel="noopener">View on GitHub</a>
 </header>
 
 <main>
@@ -268,7 +269,7 @@
   import { closeBrackets, closeBracketsKeymap } from "https://esm.sh/@codemirror/autocomplete@6";
   import { tags } from "https://esm.sh/@lezer/highlight@1";
 
-  import { EXAMPLES } from "./examples.js";
+  import { EXAMPLES } from "./examples.js?v=1";
 
   // ── Neuva syntax highlighting (CodeMirror 6 StreamLanguage) ─────────────
 
@@ -420,7 +421,8 @@
     try {
       pyodide = await loadPyodide();
       loadingSub.textContent = "Loading the Neuva interpreter…";
-      const res = await fetch("./neuva_web.py");
+      const base = document.baseURI;
+      const res = await fetch(new URL("neuva_web.py", base));
       if (!res.ok) throw new Error(`could not load neuva_web.py (${res.status})`);
       const src = await res.text();
       pyodide.runPython(src);
