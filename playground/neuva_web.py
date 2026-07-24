@@ -8,8 +8,10 @@ Entry point: run_neuva(source) -> str (captured stdout, or a formatted error).
 """
 
 import contextlib
+import csv
 import difflib
 import io
+import json
 import math
 import random
 import re
@@ -938,8 +940,21 @@ class DataSet:
             var = sum((row[i] - means[i]) ** 2 for row in self.X) / len(self.X)
             stds.append(var ** 0.5 or 1.0)
         Xn = [[(row[i] - means[i]) / stds[i] for i in range(n_features)] for row in self.X]
-        result = DataSet(self.name, Xn, list(self.y), self.columns, self.n_classes)
-        return result
+
+        # Regression targets get z-scored too (matches the real backend); classification
+        # targets (class indices, self.n_classes set) are left untouched.
+        yn = list(self.y)
+        if self.y and self.n_classes is None:
+            flat = [v for row in self.y for v in (row if isinstance(row, list) else [row])]
+            y_mean = sum(flat) / len(flat)
+            y_var = sum((v - y_mean) ** 2 for v in flat) / len(flat)
+            y_std = y_var ** 0.5 or 1.0
+            if isinstance(self.y[0], list):
+                yn = [[(v - y_mean) / y_std for v in row] for row in self.y]
+            else:
+                yn = [(v - y_mean) / y_std for v in self.y]
+
+        return DataSet(self.name, Xn, yn, self.columns, self.n_classes)
 
     def shuffle(self):
         idx = list(range(len(self.X)))
@@ -963,8 +978,100 @@ class DataSet:
         return f"DataSet({self.name!r}, {len(self)} rows)"
 
 
+# Datasets uploaded from the browser (see register_uploaded_csv), keyed by filename
+# without its .csv extension. load() checks here first before falling back to
+# synthetic data, so `load("myfile.csv")` after an upload uses the real rows.
+_UPLOADED_DATASETS = {}
+
+
+def _try_num(text):
+    text = text.strip()
+    try:
+        return int(text)
+    except ValueError:
+        pass
+    try:
+        return float(text)
+    except ValueError:
+        return None
+
+
+def register_uploaded_csv(filename, text):
+    """Parse a CSV uploaded from the browser and store its numeric columns.
+
+    Mirrors the real backend's load_csv(): keeps only numeric columns, and later
+    (in _dataset_from_upload) treats the last n_targets of them as the target(s).
+    Returns a JSON string summarizing what was parsed, for the upload UI to show.
+    """
+    rows = [r for r in csv.reader(io.StringIO(text)) if any(c.strip() for c in r)]
+    if len(rows) < 2:
+        raise RuntimeError_(f"'{filename}' has no data rows")
+    header, data_rows = rows[0], rows[1:]
+    n_cols = len(header)
+
+    numeric_col_idx = []
+    for c in range(n_cols):
+        if all(c < len(row) and _try_num(row[c]) is not None for row in data_rows):
+            numeric_col_idx.append(c)
+
+    if len(numeric_col_idx) < 2:
+        raise RuntimeError_(
+            f"'{filename}' needs at least 2 numeric columns (features + target); "
+            f"found {len(numeric_col_idx)}"
+        )
+
+    columns = [header[c] for c in numeric_col_idx]
+    int_cols = [True] * len(numeric_col_idx)
+    matrix = []
+    for row in data_rows:
+        vals = []
+        for j, c in enumerate(numeric_col_idx):
+            v = _try_num(row[c])
+            if not isinstance(v, int):
+                int_cols[j] = False
+            vals.append(v)
+        matrix.append(vals)
+
+    base = filename[:-4] if filename.lower().endswith(".csv") else filename
+    _UPLOADED_DATASETS[base] = {"columns": columns, "rows": matrix, "int_cols": int_cols}
+
+    return json.dumps({
+        "name": base,
+        "row_count": len(matrix),
+        "numeric_cols": len(columns),
+        "total_cols": n_cols,
+        "columns": columns,
+    })
+
+
+def _dataset_from_upload(entry, n_targets, name):
+    columns, rows, int_cols = entry["columns"], entry["rows"], entry["int_cols"]
+    n_features = len(columns) - n_targets
+    if n_features < 1:
+        raise RuntimeError_(
+            f"'{name}' needs at least {n_targets + 1} numeric columns (features + "
+            f"{n_targets} target(s)); found {len(columns)}"
+        )
+    X = [row[:n_features] for row in rows]
+    if n_targets == 1:
+        y = [row[n_features] for row in rows]
+        n_classes = len(set(y)) if int_cols[n_features] else None
+        if n_classes:
+            y = [int(v) for v in y]
+    else:
+        y = [row[n_features:] for row in rows]
+        n_classes = None
+    return DataSet(name, X, y, columns[:n_features], n_classes)
+
+
 def fake_load(path, n_targets=1):
-    return DataSet.from_path(str(path), int(n_targets))
+    n_targets = int(n_targets)
+    base = re.split(r"[\\/]", str(path))[-1]
+    if base.endswith(".csv"):
+        base = base[:-4]
+    if base in _UPLOADED_DATASETS:
+        return _dataset_from_upload(_UPLOADED_DATASETS[base], n_targets, base)
+    return DataSet.from_path(str(path), n_targets)
 
 
 class NeuvaModel:

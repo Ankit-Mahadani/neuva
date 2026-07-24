@@ -1,11 +1,12 @@
 <!doctype html>
 <html lang="en">
 <head>
-<base href="/neuva/">
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Neuva Playground</title>
 <meta name="description" content="Run Neuva — a programming language built purely for Machine Learning — right in your browser." />
+<link rel="icon" type="image/svg+xml" href="favicon.svg" />
+<link rel="icon" type="image/x-icon" href="favicon.ico" sizes="16x16 32x32 48x48" />
 <style>
   :root {
     --bg: #1e1e1e;
@@ -31,12 +32,14 @@
     background: var(--bg);
     color: var(--fg);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-tap-highlight-color: transparent;
   }
 
   body {
     display: flex;
     flex-direction: column;
     height: 100vh;
+    height: 100dvh; /* accounts for mobile browser chrome (address bar) */
     overflow: hidden;
   }
 
@@ -55,6 +58,7 @@
     font-weight: 700;
     letter-spacing: 0.02em;
     color: var(--fg);
+    flex-shrink: 0;
   }
 
   header .logo span { color: var(--accent); }
@@ -73,6 +77,8 @@
     border: 1px solid var(--border);
     border-radius: 6px;
     padding: 0.3rem 0.6rem;
+    white-space: nowrap;
+    flex-shrink: 0;
   }
   header a.repo-link:hover { color: var(--fg); border-color: var(--fg-dim); }
 
@@ -119,6 +125,7 @@
     color: var(--fg);
     padding: 0.35rem 0.6rem;
     cursor: pointer;
+    touch-action: manipulation;
   }
 
   select:hover, button:hover:not(:disabled) { border-color: var(--fg-dim); }
@@ -134,7 +141,33 @@
     gap: 0.4rem;
   }
   button.primary:hover:not(:disabled) { background: var(--accent-hover); }
+
+  button.danger {
+    background: var(--red);
+    border-color: var(--red);
+    color: white;
+    font-weight: 600;
+  }
+  button.danger:hover:not(:disabled) { background: #f16565; }
+
   button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .editor-panel.drag-over {
+    outline: 2px dashed var(--accent);
+    outline-offset: -2px;
+  }
+
+  #upload-status {
+    display: none;
+    padding: 0.5rem 0.85rem;
+    font-size: 0.78rem;
+    line-height: 1.4;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  #upload-status.pending { display: block; color: var(--fg-dim); }
+  #upload-status.success { display: block; color: var(--green); background: rgba(16, 185, 129, 0.08); }
+  #upload-status.error { display: block; color: #ff6b6b; background: rgba(239, 68, 68, 0.08); }
 
   #editor {
     flex: 1;
@@ -159,12 +192,13 @@
     font-family: var(--mono);
     font-size: 13px;
     line-height: 1.55;
-    white-space: pre-wrap;
-    word-break: break-word;
+    /* pre (not pre-wrap) keeps ASCII box-drawing output (model summaries, plots)
+       intact — those lines scroll horizontally instead of getting mangled */
+    white-space: pre;
     color: var(--fg);
   }
 
-  #output .placeholder { color: var(--fg-dim); font-style: italic; }
+  #output .placeholder { color: var(--fg-dim); font-style: italic; white-space: pre-wrap; }
   #output .error-line { color: #ff6b6b; }
   #output .run-marker { color: var(--green); }
 
@@ -211,9 +245,35 @@
   }
 
   @media (max-width: 820px) {
-    main { flex-direction: column; }
+    header {
+      flex-wrap: wrap;
+      row-gap: 0.4rem;
+      padding: 0.7rem 0.9rem;
+    }
+    header .tagline {
+      flex-basis: 100%;
+      order: 3;
+      font-size: 0.78rem;
+    }
+    header .spacer { display: none; }
+    header a.repo-link { margin-left: auto; white-space: nowrap; }
+
+    main { flex-direction: column; overflow-y: auto; }
     .editor-panel { border-right: none; border-bottom: 1px solid var(--border); }
-    .editor-panel, .output-panel { flex: 1; }
+    .editor-panel { flex: 1.4; min-height: 220px; }
+    .output-panel { flex: 1; min-height: 160px; }
+
+    .toolbar { flex-wrap: wrap; row-gap: 0.4rem; }
+    .toolbar .title { flex-basis: 100%; margin-right: 0; }
+    #example-select { flex: 1 1 auto; min-width: 0; }
+
+    select, button {
+      font-size: 0.9rem;
+      padding: 0.55rem 0.75rem;
+      min-height: 40px;
+    }
+
+    #output { font-size: 12.5px; padding: 0.7rem 0.85rem; }
   }
 </style>
 </head>
@@ -223,7 +283,7 @@
   <div class="logo">Neuva<span>::playground</span></div>
   <div class="tagline">A programming language built purely for Machine Learning — simple like Python, clear like Rust.</div>
   <div class="spacer"></div>
-  <a class="repo-link" href="https://github.com/Ankit-Mahadani/neuva" target="_blank" rel="noopener">View on GitHub</a>
+  <a class="repo-link" href="https://github.com/Ankit-Mahadani/neuva" target="_blank" rel="noopener">GitHub ↗</a>
 </header>
 
 <main>
@@ -233,17 +293,26 @@
       <select id="example-select" aria-label="Load example program">
         <option value="" disabled selected>Load example…</option>
       </select>
+      <button
+        id="upload-btn"
+        disabled
+        title="Loading Python runtime…"
+      >Upload CSV</button>
+      <input type="file" id="csv-input" accept=".csv" hidden />
+      <button id="stop-btn" class="danger" style="display:none;" title="Stop execution">Stop ■</button>
       <button id="run-btn" class="primary" disabled title="Loading Python runtime…">
         <span id="run-spinner" class="spinner" style="display:none;"></span>
         <span id="run-label">Run ▶</span>
       </button>
     </div>
+    <div id="upload-status"></div>
     <div id="editor"></div>
   </section>
 
   <section class="panel output-panel">
     <div class="toolbar">
       <span class="title">Output</span>
+      <button id="download-btn" title="Download the output as a text file">Download</button>
       <button id="clear-btn">Clear</button>
     </div>
     <div id="output-wrap"><pre id="output"><span class="placeholder">Output will appear here after you click Run.</span></pre></div>
@@ -256,7 +325,6 @@
   <div class="loading-sub" id="loading-sub">Loading Python runtime (Pyodide via WebAssembly)</div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
 <script type="module">
   import { EditorState } from "https://esm.sh/@codemirror/state@6";
   import {
@@ -332,7 +400,35 @@
     ...historyKeymap,
   ]);
 
-  const startDoc = EXAMPLES["Hello World"];
+  // ── Autosave (localStorage) ──────────────────────────────────────────
+
+  const STORAGE_KEY = "neuva-playground-code";
+
+  function loadSavedCode() {
+    try {
+      return localStorage.getItem(STORAGE_KEY);
+    } catch (err) {
+      return null; // private browsing / storage disabled — just fall back
+    }
+  }
+
+  let saveTimer = null;
+  function scheduleSave(text) {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      try {
+        localStorage.setItem(STORAGE_KEY, text);
+      } catch (err) {
+        /* storage unavailable or full — autosave just silently no-ops */
+      }
+    }, 400);
+  }
+
+  const autosaveListener = EditorView.updateListener.of((update) => {
+    if (update.docChanged) scheduleSave(update.state.doc.toString());
+  });
+
+  const startDoc = loadSavedCode() || EXAMPLES["Hello World"];
 
   const view = new EditorView({
     state: EditorState.create({
@@ -349,6 +445,7 @@
         syntaxHighlighting(neuvaHighlightStyle),
         neuvaTheme,
         runKeymap,
+        autosaveListener,
         EditorView.lineWrapping,
       ],
     }),
@@ -407,28 +504,69 @@
     renderOutput("");
   });
 
-  // ── Pyodide setup ────────────────────────────────────────────────────
+  // ── Worker-backed Pyodide runtime ───────────────────────────────────
+  //
+  // Pyodide runs inside pyodide-worker.js, not on this (main UI) thread. That
+  // way a Neuva program that hangs (e.g. `while true {}`) only hangs the
+  // worker — the page stays responsive, and Stop can recover by terminating
+  // the worker and spawning a fresh one.
 
   const runBtn = document.getElementById("run-btn");
   const runSpinner = document.getElementById("run-spinner");
   const runLabel = document.getElementById("run-label");
+  const stopBtn = document.getElementById("stop-btn");
   const loadingOverlay = document.getElementById("loading-overlay");
   const loadingSub = document.getElementById("loading-sub");
+  const uploadBtn = document.getElementById("upload-btn");
+  const csvInput = document.getElementById("csv-input");
+  const uploadStatus = document.getElementById("upload-status");
+  const editorPanel = document.querySelector(".editor-panel");
 
-  let pyodide = null;
+  let worker = null;
+  let msgId = 0;
+  const pending = new Map();
 
-  async function initPyodide() {
+  function spawnWorker() {
+    const w = new Worker(new URL("pyodide-worker.js", document.baseURI));
+    w.onmessage = (event) => {
+      const { id, ok, result, error } = event.data;
+      const entry = pending.get(id);
+      if (!entry) return;
+      pending.delete(id);
+      if (ok) entry.resolve(result);
+      else entry.reject(new Error(error));
+    };
+    w.onerror = (event) => {
+      for (const entry of pending.values()) entry.reject(new Error(event.message || "worker error"));
+      pending.clear();
+    };
+    return w;
+  }
+
+  function callWorker(type, payload) {
+    const id = ++msgId;
+    return new Promise((resolve, reject) => {
+      pending.set(id, { resolve, reject });
+      worker.postMessage({ id, type, payload });
+    });
+  }
+
+  function setReady(isReady) {
+    runBtn.disabled = !isReady;
+    runBtn.title = isReady ? "Run this program (Ctrl/Cmd + Enter)" : "Loading Python runtime…";
+    uploadBtn.disabled = !isReady;
+    uploadBtn.title = isReady
+      ? "Upload a CSV to use with load(\"filename.csv\") in your code"
+      : "Loading Python runtime…";
+  }
+
+  async function initWorker() {
     try {
-      pyodide = await loadPyodide();
+      worker = spawnWorker();
       loadingSub.textContent = "Loading the Neuva interpreter…";
-      const base = document.baseURI;
-      const res = await fetch(new URL("neuva_web.py", base));
-      if (!res.ok) throw new Error(`could not load neuva_web.py (${res.status})`);
-      const src = await res.text();
-      pyodide.runPython(src);
+      await callWorker("init", {});
 
-      runBtn.disabled = false;
-      runBtn.title = "Run this program (Ctrl/Cmd + Enter)";
+      setReady(true);
       loadingOverlay.classList.add("hidden");
       setTimeout(() => loadingOverlay.remove(), 300);
     } catch (err) {
@@ -437,30 +575,140 @@
     }
   }
 
+  function shortPyError(err) {
+    const msg = err && err.message ? err.message : String(err);
+    // Pyodide wraps Python exceptions with a full traceback; keep just the last
+    // line, and strip the "SomeError:" / "module.SomeError:" prefix off it.
+    return msg.trim().split("\n").pop().replace(/^[\w.]*Error\w*:\s*/, "");
+  }
+
+  // ── CSV upload (file picker + drag & drop) ──────────────────────────
+
+  async function handleCsvFile(file) {
+    if (!worker) return;
+    uploadStatus.className = "pending";
+    uploadStatus.textContent = `Parsing ${file.name}…`;
+    try {
+      const text = await file.text();
+      const resultText = await callWorker("registerCsv", { name: file.name, text });
+      const info = JSON.parse(resultText);
+      uploadStatus.className = "success";
+      uploadStatus.textContent =
+        `✓ ${info.name}.csv loaded — ${info.row_count} rows, ` +
+        `${info.numeric_cols}/${info.total_cols} numeric columns ` +
+        `(${info.columns.join(", ")}). Use load("${info.name}.csv") in your code — ` +
+        `the last numeric column is the target by default.`;
+    } catch (err) {
+      uploadStatus.className = "error";
+      uploadStatus.textContent = "Could not load CSV: " + shortPyError(err);
+    }
+  }
+
+  uploadBtn.addEventListener("click", () => {
+    if (uploadBtn.disabled) return;
+    csvInput.click();
+  });
+
+  csvInput.addEventListener("change", async () => {
+    const file = csvInput.files[0];
+    csvInput.value = ""; // allow re-selecting the same file later
+    if (file) await handleCsvFile(file);
+  });
+
+  // Drag-and-drop a .csv onto the editor panel. Listeners run in the capture
+  // phase and stopPropagation() before CodeMirror's own drop handling (which
+  // only cares about text/plain drags for in-editor text moves) ever sees the
+  // event, so this can't interfere with normal editing.
+  function isFileDrag(e) {
+    return Array.from(e.dataTransfer?.types || []).includes("Files");
+  }
+  editorPanel.addEventListener("dragover", (e) => {
+    if (!isFileDrag(e)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    editorPanel.classList.add("drag-over");
+  }, true);
+  editorPanel.addEventListener("dragleave", (e) => {
+    if (!isFileDrag(e)) return;
+    editorPanel.classList.remove("drag-over");
+  }, true);
+  editorPanel.addEventListener("drop", async (e) => {
+    if (!isFileDrag(e)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    editorPanel.classList.remove("drag-over");
+    const file = e.dataTransfer.files[0];
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith(".csv")) {
+      uploadStatus.className = "error";
+      uploadStatus.textContent = "Drop a .csv file to load it as a dataset.";
+      return;
+    }
+    await handleCsvFile(file);
+  }, true);
+
+  // ── Run / Stop ───────────────────────────────────────────────────────
+
   function setRunning(isRunning) {
     runBtn.disabled = isRunning;
     runSpinner.style.display = isRunning ? "inline-block" : "none";
     runLabel.textContent = isRunning ? "Running…" : "Run ▶";
+    stopBtn.style.display = isRunning ? "inline-flex" : "none";
   }
 
   async function runCode() {
-    if (!pyodide || runBtn.disabled) return;
+    if (!worker || runBtn.disabled) return;
     const code = view.state.doc.toString();
     setRunning(true);
     try {
-      pyodide.globals.set("__neuva_user_code", code);
-      const result = pyodide.runPython("run_neuva(__neuva_user_code)");
+      const result = await callWorker("run", { code });
       renderOutput(result);
     } catch (err) {
-      renderOutput("Playground error: " + (err && err.message ? err.message : String(err)));
+      if (err.message !== "__stopped__") {
+        renderOutput("Playground error: " + err.message);
+      }
     } finally {
       setRunning(false);
     }
   }
 
-  runBtn.addEventListener("click", runCode);
+  async function stopExecution() {
+    if (!worker) return;
+    worker.terminate();
+    for (const entry of pending.values()) entry.reject(new Error("__stopped__"));
+    pending.clear();
+    setRunning(false);
 
-  initPyodide();
+    renderOutput("Execution stopped. Restarting the Python runtime…");
+    setReady(false);
+    try {
+      worker = spawnWorker();
+      await callWorker("init", {});
+      setReady(true);
+    } catch (err) {
+      loadingSub.textContent = "Failed to restart: " + err.message;
+    }
+  }
+
+  runBtn.addEventListener("click", runCode);
+  stopBtn.addEventListener("click", stopExecution);
+
+  // ── Download output ──────────────────────────────────────────────────
+
+  document.getElementById("download-btn").addEventListener("click", () => {
+    if (outputEl.querySelector(".placeholder")) return; // nothing to download yet
+    const blob = new Blob([outputEl.textContent], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "neuva-output.txt";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  });
+
+  initWorker();
 </script>
 
 </body>

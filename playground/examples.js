@@ -1,7 +1,7 @@
 // Example Neuva programs loaded into the playground editor via the dropdown.
 // Kept in sync with the language surface supported by neuva_web.py.
 
-const EXAMPLES = {
+export const EXAMPLES = {
   "Hello World": `# Hello World in Neuva
 let name = "Neuva"
 print "Hello from", name
