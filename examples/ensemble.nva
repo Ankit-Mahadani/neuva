@@ -1,0 +1,73 @@
+# Ensemble demo — train 3 differently-shaped models on the same data and combine
+# their predictions with a simple majority vote.
+
+let data = load("examples/data/iris.csv")
+let train_data, test_data = data.split(0.8)
+
+model ModelA {
+    layer dense(4 -> 16, relu)
+    layer dense(16 -> 3, softmax)
+}
+
+model ModelB {
+    layer dense(4 -> 8, relu)
+    layer dense(8 -> 3, softmax)
+}
+
+model ModelC {
+    layer dense(4 -> 32, relu)
+    layer dropout(0.3)
+    layer dense(32 -> 3, softmax)
+}
+
+train ModelA on train_data for 15 epochs, lr = 0.01, loss = crossentropy
+train ModelB on train_data for 15 epochs, lr = 0.01, loss = crossentropy
+train ModelC on train_data for 15 epochs, lr = 0.01, loss = crossentropy
+
+print "Accuracy A:", accuracy(ModelA, test_data)
+print "Accuracy B:", accuracy(ModelB, test_data)
+print "Accuracy C:", accuracy(ModelC, test_data)
+
+let preds_a = predict(ModelA, test_data)
+let preds_b = predict(ModelB, test_data)
+let preds_c = predict(ModelC, test_data)
+
+fn count_class(votes, class_id) {
+    let count = 0
+    for v in votes {
+        if v == class_id {
+            count += 1
+        }
+    }
+    return count
+}
+
+# Iris has 3 classes (0, 1, 2) — tally votes for each and keep the most common.
+fn majority_vote(votes) {
+    let count0 = count_class(votes, 0)
+    let count1 = count_class(votes, 1)
+    let count2 = count_class(votes, 2)
+    let best = 0
+    let best_count = count0
+    if count1 > best_count {
+        best = 1
+        best_count = count1
+    }
+    if count2 > best_count {
+        best = 2
+        best_count = count2
+    }
+    return best
+}
+
+let n = len(preds_a)
+let ensemble_preds = []
+for i in range(0, n) {
+    let votes = [preds_a[i], preds_b[i], preds_c[i]]
+    let ensemble_preds = ensemble_preds + [majority_vote(votes)]
+}
+
+print "Model A predictions:", preds_a
+print "Model B predictions:", preds_b
+print "Model C predictions:", preds_c
+print "Ensemble (majority vote) predictions:", ensemble_preds

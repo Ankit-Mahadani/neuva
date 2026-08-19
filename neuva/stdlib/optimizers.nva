@@ -1,0 +1,15 @@
+# Neuva stdlib — optimizers
+# Configure which optimizer the *next* `train` statement uses. Call one of these right
+# before `train ...` — the choice applies to that one training run and is then cleared.
+
+fn use_sgd(lr, momentum) {
+    return __use_sgd(lr, momentum)
+}
+
+fn use_adam(lr, beta1, beta2) {
+    return __use_adam(lr, beta1, beta2)
+}
+
+fn use_rmsprop(lr) {
+    return __use_rmsprop(lr)
+}

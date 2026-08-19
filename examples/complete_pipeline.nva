@@ -1,0 +1,37 @@
+# Complete pipeline demo — exercises every major Neuva feature end to end:
+# load -> normalize -> split -> multi-layer-type model -> train with scheduler +
+# early stopping -> evaluate with every metric -> save -> reload -> predict ->
+# confusion matrix.
+
+let data = load("examples/data/iris.csv")
+let normalized = data.normalize()
+let train_data, test_data = normalized.split(0.8)
+
+model IrisNet {
+    layer dense(4 -> 32, relu)
+    layer norm(32)
+    layer dropout(0.2)
+    layer dense(32 -> 3, softmax)
+}
+
+train IrisNet on train_data for 40 epochs, lr = 0.01, loss = crossentropy, lr_schedule = step, early_stop = 8
+
+print IrisNet
+
+let acc = accuracy(IrisNet, test_data)
+let p = precision(IrisNet, test_data)
+let r = recall(IrisNet, test_data)
+let f1 = f1_score(IrisNet, test_data)
+
+print "Accuracy:", acc
+print "Precision (per class):", p
+print "Recall (per class):", r
+print "F1 (per class):", f1
+
+save IrisNet to "models/complete_pipeline_model.nva"
+let reloaded = load("models/complete_pipeline_model.nva")
+
+print "Accuracy after reload:", accuracy(reloaded, test_data)
+predict reloaded on test_data
+
+confusion_matrix(reloaded, test_data)

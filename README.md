@@ -342,9 +342,12 @@ The answer is 42
 
 | Document | Description |
 |---|---|
-| [Getting Started](docs/GETTING_STARTED.md) | Install, hello world, running `.nva` files |
+| [Getting Started](docs/GETTING_STARTED.md) | Install, hello world, running `.nva` files, the REPL, the web playground |
 | [Language Reference](docs/LANGUAGE_REFERENCE.md) | Every keyword with syntax and examples |
+| [Architecture](docs/ARCHITECTURE.md) | How source turns into a running program, and the scoping model |
+| [Contributing Guide](docs/CONTRIBUTING_GUIDE.md) | How to add a keyword, layer type, builtin, or test |
 | [Examples](docs/EXAMPLES.md) | Line-by-line walkthrough of the iris classifier |
+| [FAQ](docs/FAQ.md) | Production readiness, licensing, GPU support, and more |
 | [Changelog](CHANGELOG.md) | Full version history |
 | [Roadmap](ROADMAP.md) | What's planned post-1.0 |
 

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "neuva-lang"
-version = "1.1.0"
+version = "1.2.0"
 description = "Neuva — A working ML programming language with lexer, parser, AST and interpreter"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -14,6 +14,11 @@ dependencies = [
     "torch>=2.0",
     "numpy>=1.24",
     "pandas>=2.0",
+    "scikit-learn>=1.3",
+    "colorama>=0.4",
+    "onnx>=1.15",
+    "onnxruntime>=1.16",
+    "pyreadline3>=3.4; platform_system == 'Windows'",
 ]
 keywords = ["machine-learning", "programming-language", "neural-network"]
 classifiers = [
@@ -38,3 +43,6 @@ include = ["neuva*"]
 
 [tool.setuptools.package-data]
 "neuva" = ["parser/*.lark", "stdlib/*.nva"]
+
+[tool.black]
+target-version = ["py310", "py311", "py312"]

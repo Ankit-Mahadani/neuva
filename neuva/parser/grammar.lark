@@ -13,7 +13,9 @@ statement: print_stmt NEWLINE
          | if_stmt
          | for_stmt
          | while_stmt
+         | match_stmt
          | import_stmt NEWLINE
+         | assign_stmt NEWLINE
          | expr_stmt NEWLINE
          | NEWLINE
 
@@ -44,10 +46,13 @@ train_stmt: _TRAIN NAME _ON NAME _FOR NUMBER _EPOCHS ("," train_opt)* NEWLINE
 
 train_body: _ON NAME NEWLINE _FOR NUMBER _EPOCHS NEWLINE (train_opt NEWLINE)*
 
-train_opt: _LR "=" (NUMBER | FLOAT)     -> opt_lr
+// lr/early_stop/lr_warmup take a full expr so they can be parametrized by a variable
+// (e.g. a hyperparameter-search loop variable), not just a literal number.
+train_opt: _LR "=" expr                 -> opt_lr
          | _LOSS "=" NAME               -> opt_loss
          | _LR_SCHEDULE "=" NAME        -> opt_lr_schedule
-         | _EARLY_STOP "=" NUMBER       -> opt_early_stop
+         | _EARLY_STOP "=" expr         -> opt_early_stop
+         | _LR_WARMUP "=" expr          -> opt_lr_warmup
 
 // Save statement
 save_stmt: _SAVE NAME _TO expr
@@ -77,6 +82,15 @@ for_body: "{" NEWLINE statement* "}"
 // While loop
 while_stmt: _WHILE expr while_body NEWLINE
 while_body: "{" NEWLINE statement* "}"
+
+// Match / case statement
+match_stmt: _MATCH expr "{" NEWLINE case_clause* default_clause? "}" NEWLINE
+case_clause: _CASE literal ":" statement
+default_clause: _DEFAULT ":" statement
+
+// Assignment statement (reassignment of an existing variable)
+assign_stmt: NAME "=" expr        -> assign
+           | NAME AUGOP expr      -> aug_assign
 
 // Expression statement (standalone call or assignment)
 expr_stmt: expr
@@ -109,6 +123,7 @@ expr_stmt: expr
 
 ?unary: "-" unary -> neg
       | "!" unary -> not_
+      | _NOT unary -> not_
       | call_or_attr
 
 ?call_or_attr: call_or_attr "." NAME "(" arg_list? ")" -> method_call
@@ -117,6 +132,7 @@ expr_stmt: expr
              | primary
 
 ?primary: "(" expr ")"
+        | dict_lit
         | list_lit
         | literal
         | NAME -> var
@@ -125,13 +141,19 @@ expr_stmt: expr
 list_lit: "[" "]"
         | "[" expr ("," expr)* "]"
 
+// Dict literal
+dict_lit: "{" "}"
+        | "{" dict_entry ("," dict_entry)* "}"
+dict_entry: expr ":" expr
+
 arg_list: expr ("," expr)*
 
 // Literals
-literal: INT    -> int_lit
-       | FLOAT  -> float_lit
-       | STRING -> string_lit
-       | BOOL   -> bool_lit
+literal: INT           -> int_lit
+       | FLOAT         -> float_lit
+       | TRIPLE_STRING -> triple_string_lit
+       | STRING        -> string_lit
+       | BOOL          -> bool_lit
 
 // Types
 type: _KW_INT    -> type_int
@@ -170,8 +192,13 @@ _RETURN: "return" _KW_BOUNDARY
 _IF: "if" _KW_BOUNDARY
 _ELSE: "else" _KW_BOUNDARY
 _WHILE: "while" _KW_BOUNDARY
+_MATCH: "match" _KW_BOUNDARY
+_CASE: "case" _KW_BOUNDARY
+_DEFAULT: "default" _KW_BOUNDARY
 _AND: "and" _KW_BOUNDARY
 _OR: "or" _KW_BOUNDARY
+_NOT: "not" _KW_BOUNDARY
+_LR_WARMUP: "lr_warmup" _KW_BOUNDARY
 _KW_INT: "int" _KW_BOUNDARY
 _KW_FLOAT: "float" _KW_BOUNDARY
 _KW_BOOL: "bool" _KW_BOUNDARY
@@ -180,6 +207,7 @@ _KW_TENSOR: "tensor" _KW_BOUNDARY
 _KW_MATRIX: "matrix" _KW_BOUNDARY
 
 BOOL: "true" | "false"
+TRIPLE_STRING.2: /"""[\s\S]*?"""/
 STRING: "\"" /[^"\\]*/ "\""
 INT: /[0-9]+/
 FLOAT: /[0-9]+\.[0-9]*/
@@ -187,6 +215,7 @@ NUMBER: /[0-9]+(\.[0-9]*)?/
 NAME: /[a-zA-Z_][a-zA-Z0-9_]*/
 NEWLINE: /\n/
 ARROW: "->"
+AUGOP: "+=" | "-=" | "*=" | "/="
 
 %ignore /\#[^\n]*/
 %ignore /[ \t\r]+/

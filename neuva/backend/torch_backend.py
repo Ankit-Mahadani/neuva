@@ -1,32 +1,37 @@
+import os
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from sklearn import metrics as _skmetrics
 
+from neuva.backend.data_loader import DataSet
 from neuva.parser.ast_nodes import LayerStatement, OutputLayerStatement
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 _ACTIVATIONS = {
-    "relu":     torch.relu,
-    "sigmoid":  torch.sigmoid,
-    "tanh":     torch.tanh,
-    "softmax":  lambda x: torch.softmax(x, dim=-1),
-    "linear":   lambda x: x,
+    "relu": torch.relu,
+    "sigmoid": torch.sigmoid,
+    "tanh": torch.tanh,
+    "softmax": lambda x: torch.softmax(x, dim=-1),
+    "linear": lambda x: x,
 }
 
 _LOSSES = {
-    "crossentropy":        nn.CrossEntropyLoss,
+    "crossentropy": nn.CrossEntropyLoss,
     "binary_crossentropy": nn.BCELoss,
-    "mse":                 nn.MSELoss,
-    "mae":                 nn.L1Loss,
+    "mse": nn.MSELoss,
+    "mae": nn.L1Loss,
 }
 
 LOSS_NAMES = set(_LOSSES.keys())
 
 
 # ── callable loss functions (usable as builtins and inside custom Neuva loss fns) ──
+
 
 def _align_regression_target(pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
     """Reshape/one-hot `target` so it matches `pred`'s shape for elementwise losses."""
@@ -74,7 +79,9 @@ class _RNNWrapper(nn.Module):
     final time-step's hidden state.
     """
 
-    def __init__(self, kind: str, input_size: int, hidden_size: int, num_layers: int = 1):
+    def __init__(
+        self, kind: str, input_size: int, hidden_size: int, num_layers: int = 1
+    ):
         super().__init__()
         self.kind = kind
         self.input_size = input_size
@@ -134,7 +141,10 @@ class _TransformerWrapper(nn.Module):
         self.num_heads = num_heads
         self.ff_dim = ff_dim
         self.layer = nn.TransformerEncoderLayer(
-            d_model=embed_dim, nhead=num_heads, dim_feedforward=ff_dim, batch_first=True,
+            d_model=embed_dim,
+            nhead=num_heads,
+            dim_feedforward=ff_dim,
+            batch_first=True,
         )
         self.out_features = embed_dim
 
@@ -146,16 +156,22 @@ class _TransformerWrapper(nn.Module):
 
 
 class NeuvaModel(nn.Module):
-    def __init__(self, layers: list, outputs: list = None):
+    def __init__(self, layers: List[Any], outputs: Optional[List[Any]] = None):
+        """Build the layer stack (and optional multi-output heads) from parsed layer specs.
+
+        `layers` items are `LayerStatement`-like objects with `.name`/`.args`, or a raw
+        `(in, out, act_name)` tuple. `outputs` items are `OutputLayerStatement` objects,
+        or `(name, LayerStatement)` tuples — see the branches below.
+        """
         super().__init__()
         self.linears = nn.ModuleList()
-        self.activations = []
-        self.activation_names: list[str] = []
+        self.activations: List[Callable[[torch.Tensor], torch.Tensor]] = []
+        self.activation_names: List[str] = []
         # Serializable architecture description (name, args) per layer/output head —
         # kept alongside the built nn.Modules so save/load can reconstruct any
         # architecture (rnn/lstm/multi-output/etc), not just infer it from tensor shapes.
-        self.layer_specs: list = []
-        self.output_specs: list = []
+        self.layer_specs: List[Tuple[str, List[Any]]] = []
+        self.output_specs: List[Tuple[str, str, List[Any]]] = []
         for layer in layers:
             if hasattr(layer, "args"):
                 lname = getattr(layer, "name", "dense")
@@ -182,10 +198,17 @@ class NeuvaModel(nn.Module):
                 self.linears.append(nn.Dropout(p))
                 self.activations.append(lambda x: x)
                 self.activation_names.append("linear")
+            elif lname == "norm":
+                num_features = int(args[0])
+                self.linears.append(nn.BatchNorm1d(num_features))
+                self.activations.append(lambda x: x)
+                self.activation_names.append("linear")
             elif lname in ("rnn", "lstm"):
                 input_size, hidden_size = args[0], args[1]
                 num_layers = int(args[2]) if len(args) >= 3 else 1
-                self.linears.append(_RNNWrapper(lname, input_size, hidden_size, num_layers))
+                self.linears.append(
+                    _RNNWrapper(lname, input_size, hidden_size, num_layers)
+                )
                 self.activations.append(lambda x: x)
                 self.activation_names.append("linear")
             elif lname == "embedding":
@@ -209,10 +232,12 @@ class NeuvaModel(nn.Module):
                 self.activations.append(_ACTIVATIONS.get(act_name, lambda x: x))
                 self.activation_names.append(act_name)
 
-        self.output_names: list[str] = []
+        self.output_names: List[str] = []
         self.output_heads = nn.ModuleDict()
-        self.output_activation_names: dict = {}
-        self._output_activation_fns: dict = {}
+        self.output_activation_names: Dict[str, str] = {}
+        self._output_activation_fns: Dict[
+            str, Callable[[torch.Tensor], torch.Tensor]
+        ] = {}
         for out in outputs or []:
             # accepts (name, LayerStatement) tuples or OutputLayerStatement objects
             if hasattr(out, "output_name"):
@@ -224,11 +249,15 @@ class NeuvaModel(nn.Module):
             self.output_activation_names[oname] = act_name
             self._output_activation_fns[oname] = _ACTIVATIONS.get(act_name, lambda x: x)
             self.output_names.append(oname)
-            self.output_specs.append((oname, olayer.name, [in_size, out_size, act_name]))
+            self.output_specs.append(
+                (oname, olayer.name, [in_size, out_size, act_name])
+            )
 
         self.to(DEVICE)
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor) -> Union[torch.Tensor, Dict[str, torch.Tensor]]:
+        """Run the layer stack, then either the single implicit output or every named
+        output head — a dict keyed by output name for multi-output models."""
         for linear, activate in zip(self.linears, self.activations):
             x = activate(linear(x))
         if self.output_names:
@@ -238,11 +267,27 @@ class NeuvaModel(nn.Module):
             }
         return x
 
+    def freeze(self) -> None:
+        """Freeze every parameter (requires_grad=False) — for transfer learning, where
+        the pretrained backbone is held fixed while new layers are fine-tuned."""
+        for p in self.parameters():
+            p.requires_grad = False
+
+    def unfreeze(self) -> None:
+        """Unfreeze every parameter (requires_grad=True), undoing `freeze()`."""
+        for p in self.parameters():
+            p.requires_grad = True
+
 
 class NeuvaDataset:
     """Wraps a DataSet and exposes torch tensors for training."""
 
-    def __init__(self, dataset, in_size: int = 1, n_samples: int = 64):
+    def __init__(
+        self, dataset: Optional[DataSet], in_size: int = 1, n_samples: int = 64
+    ):
+        """If `dataset` has no `.X` (e.g. `None`, or a placeholder from `normalize()`/
+        `shuffle()` called with no real data), fall back to random synthetic data of
+        shape (n_samples, in_size) so training still has something to run on."""
         self.name = getattr(dataset, "name", "dataset")
         if getattr(dataset, "X", None) is not None:
             self.X = dataset.X.to(DEVICE)
@@ -254,16 +299,24 @@ class NeuvaDataset:
     def __len__(self) -> int:
         return len(self.X)
 
-    def __getitem__(self, idx):
+    def __getitem__(
+        self, idx: Union[int, torch.Tensor]
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         return self.X[idx], self.y[idx]
+
+
+# Functions below accept either a raw `DataSet` or a training-ready `NeuvaDataset` —
+# both duck-type `.X`/`.y` tensors, so callers can pass whichever they have on hand.
+DatasetLike = Union[DataSet, NeuvaDataset]
 
 
 _CLASSIFICATION_ACTIVATIONS = {"softmax", "sigmoid"}
 
 
-def _head_kinds(model: "NeuvaModel"):
+def _head_kinds(model: "NeuvaModel") -> Tuple[List[str], List[str]]:
     """Split a multi-output model's heads into (regression_heads, classification_heads),
-    auto-detected from each head's activation (softmax/sigmoid = classification, else regression)."""
+    auto-detected from each head's activation (softmax/sigmoid = classification, else regression).
+    """
     reg_heads, cls_heads = [], []
     for name in model.output_names:
         act = model.output_activation_names.get(name, "linear")
@@ -271,17 +324,20 @@ def _head_kinds(model: "NeuvaModel"):
     return reg_heads, cls_heads
 
 
-def _split_head_targets(model: "NeuvaModel", y_batch: torch.Tensor) -> dict:
+def _split_head_targets(
+    model: "NeuvaModel", y_batch: torch.Tensor
+) -> Dict[str, torch.Tensor]:
     """Slice a (batch, n_heads) target tensor into per-head targets: regression heads
     consume columns first (as float values), classification heads consume the remaining
-    columns (as class indices) — e.g. for 2 heads, y[:, 0] -> regression, y[:, 1:] -> classification."""
+    columns (as class indices) — e.g. for 2 heads, y[:, 0] -> regression, y[:, 1:] -> classification.
+    """
     if y_batch.dim() == 1:
         y_batch = y_batch.unsqueeze(1)
     reg_heads, cls_heads = _head_kinds(model)
-    targets = {}
+    targets: Dict[str, torch.Tensor] = {}
     col = 0
     for name in reg_heads:
-        targets[name] = y_batch[:, col:col + 1].float()
+        targets[name] = y_batch[:, col : col + 1].float()
         col += 1
     for name in cls_heads:
         targets[name] = y_batch[:, col].long()
@@ -289,7 +345,9 @@ def _split_head_targets(model: "NeuvaModel", y_batch: torch.Tensor) -> dict:
     return targets
 
 
-def _multi_output_loss(model: "NeuvaModel", outputs: dict, y_batch: torch.Tensor) -> torch.Tensor:
+def _multi_output_loss(
+    model: "NeuvaModel", outputs: Dict[str, torch.Tensor], y_batch: torch.Tensor
+) -> torch.Tensor:
     """Sum equally-weighted per-head losses: MSE for regression heads, cross-entropy
     for classification heads."""
     targets = _split_head_targets(model, y_batch)
@@ -304,6 +362,17 @@ def _multi_output_loss(model: "NeuvaModel", outputs: dict, y_batch: torch.Tensor
     return loss
 
 
+_OPTIMIZER_BUILDERS = {
+    "sgd": lambda params, lr, opts: optim.SGD(
+        params, lr=lr, momentum=opts.get("momentum", 0.0)
+    ),
+    "adam": lambda params, lr, opts: optim.Adam(
+        params, lr=lr, betas=opts.get("betas", (0.9, 0.999))
+    ),
+    "rmsprop": lambda params, lr, opts: optim.RMSprop(params, lr=lr),
+}
+
+
 class NeuvaTrainer:
     def train(
         self,
@@ -311,13 +380,39 @@ class NeuvaTrainer:
         data: NeuvaDataset,
         epochs: int,
         lr: float = 0.001,
-        loss_fn="mse",
+        loss_fn: Union[
+            str, Callable[[torch.Tensor, torch.Tensor], torch.Tensor]
+        ] = "mse",
         batch_size: int = 16,
         lr_schedule: str = "none",
-        early_stop: int = None,
+        early_stop: Optional[int] = None,
+        lr_warmup: Optional[int] = None,
+        optimizer_override: Optional[Tuple[str, Dict[str, Any]]] = None,
+        epoch_end_callbacks: Optional[List[Callable[[int, float], Any]]] = None,
+        improvement_callbacks: Optional[List[Callable[[int, float], Any]]] = None,
     ) -> None:
+        """Run the training loop in place, mutating `model`'s weights.
+
+        The loss/target handling branches on the model shape rather than a single
+        code path: multi-output models dispatch to `_multi_output_loss`; a custom
+        (user-defined Neuva) `loss_fn` gets raw targets with no shape coercion since
+        the Neuva function is responsible for that; and single-output models pick
+        between multiclass/binary/regression target handling based on the resolved
+        `criterion`'s type, synthesizing random targets when `data.y` is unusable so
+        a model can still be smoke-tested without real labels.
+        """
         print(f"Training on: {DEVICE.type}")
-        optimizer = optim.Adam(model.parameters(), lr=lr)
+        if not any(p.requires_grad for p in model.parameters()):
+            print(
+                "All parameters are frozen (model.freeze() was called) — skipping training."
+            )
+            return
+        if optimizer_override is not None:
+            kind, opts = optimizer_override
+            builder = _OPTIMIZER_BUILDERS.get(kind, _OPTIMIZER_BUILDERS["adam"])
+            optimizer = builder(model.parameters(), opts.get("lr", lr), opts)
+        else:
+            optimizer = optim.Adam(model.parameters(), lr=lr)
 
         # loss_fn is either a builtin loss name (str) or a callable(pred, target) -> tensor
         # (a user-defined Neuva loss function, wired up by the interpreter).
@@ -328,7 +423,9 @@ class NeuvaTrainer:
         if lr_schedule == "step":
             scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.5)
         elif lr_schedule == "cosine":
-            scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max(1, epochs))
+            scheduler = optim.lr_scheduler.CosineAnnealingLR(
+                optimizer, T_max=max(1, epochs)
+            )
 
         last_layer = model.linears[-1] if model.linears else None
         out_features = getattr(last_layer, "out_features", 1)
@@ -342,12 +439,20 @@ class NeuvaTrainer:
         patience = 0
 
         for epoch in range(1, epochs + 1):
+            if lr_warmup:
+                if epoch <= lr_warmup:
+                    for g in optimizer.param_groups:
+                        g["lr"] = lr * (epoch / lr_warmup)
+                elif epoch == lr_warmup + 1:
+                    for g in optimizer.param_groups:
+                        g["lr"] = lr
+
             indices = torch.randperm(n, device=DEVICE)
             total_loss = 0.0
             num_batches = 0
 
             for start in range(0, n, effective_batch):
-                batch_idx = indices[start: start + effective_batch]
+                batch_idx = indices[start : start + effective_batch]
                 X_batch = data.X[batch_idx]
                 y_batch = data.y[batch_idx] if data.y is not None else None
 
@@ -356,25 +461,42 @@ class NeuvaTrainer:
 
                 if is_multi_output:
                     if y_batch is None:
-                        raise ValueError("multi-output training requires target data (y)")
+                        raise ValueError(
+                            "multi-output training requires target data (y)"
+                        )
                     loss = _multi_output_loss(model, outputs, y_batch)
                 elif custom_loss:
-                    targets = y_batch if y_batch is not None else torch.zeros_like(outputs)
+                    targets = (
+                        y_batch if y_batch is not None else torch.zeros_like(outputs)
+                    )
                     loss = criterion(outputs, targets)
                 elif is_multiclass:
                     if y_batch is not None and y_batch.numel() > 0:
                         targets = y_batch.squeeze().long()
                     else:
-                        targets = torch.randint(0, out_features, (len(X_batch),), device=DEVICE)
+                        targets = torch.randint(
+                            0, out_features, (len(X_batch),), device=DEVICE
+                        )
                     loss = criterion(outputs, targets)
                 elif is_binary:
-                    if y_batch is None or y_batch.numel() == 0 or y_batch.min() < 0 or y_batch.max() > 1:
-                        y_batch = torch.randint(0, 2, outputs.shape, device=DEVICE).float()
+                    if (
+                        y_batch is None
+                        or y_batch.numel() == 0
+                        or y_batch.min() < 0
+                        or y_batch.max() > 1
+                    ):
+                        y_batch = torch.randint(
+                            0, 2, outputs.shape, device=DEVICE
+                        ).float()
                     else:
                         y_batch = y_batch.float().view_as(outputs)
                     loss = criterion(outputs, y_batch)
                 else:
-                    targets = y_batch.view_as(outputs) if y_batch is not None else torch.zeros_like(outputs)
+                    targets = (
+                        y_batch.view_as(outputs)
+                        if y_batch is not None
+                        else torch.zeros_like(outputs)
+                    )
                     loss = criterion(outputs, targets)
 
                 loss.backward()
@@ -385,40 +507,59 @@ class NeuvaTrainer:
             avg_loss = total_loss / num_batches
             print(f"Epoch {epoch}/{epochs} — loss: {avg_loss:.4f}")
 
-            if scheduler is not None:
+            for cb in epoch_end_callbacks or []:
+                cb(epoch, avg_loss)
+
+            # Suppress the configured scheduler during warmup so the two don't fight
+            # over optimizer.param_groups[*]['lr'] in the same epoch.
+            if scheduler is not None and not (lr_warmup and epoch <= lr_warmup):
                 scheduler.step()
 
-            if early_stop is not None:
-                if avg_loss < best_loss - 1e-6:
-                    best_loss = avg_loss
-                    patience = 0
-                else:
-                    patience += 1
-                    if patience >= early_stop:
-                        print(f"Early stopping at epoch {epoch} (no improvement for {early_stop} epochs)")
-                        break
+            improved = avg_loss < best_loss - 1e-6
+            if improved:
+                best_loss = avg_loss
+                patience = 0
+                for cb in improvement_callbacks or []:
+                    cb(epoch, avg_loss)
+            elif early_stop is not None:
+                patience += 1
+                if patience >= early_stop:
+                    print(
+                        f"Early stopping at epoch {epoch} (no improvement for {early_stop} epochs)"
+                    )
+                    break
 
 
-def _evaluate_multi_output_accuracy(model: NeuvaModel, outputs: dict, y: torch.Tensor) -> dict:
+def _evaluate_multi_output_accuracy(
+    model: NeuvaModel, outputs: Dict[str, torch.Tensor], y: torch.Tensor
+) -> Dict[str, float]:
     """Per-head accuracy: R² for regression heads, classification accuracy for the rest."""
     targets = _split_head_targets(model, y)
     reg_heads, cls_heads = _head_kinds(model)
-    result = {}
+    result: Dict[str, float] = {}
     for name in reg_heads:
         target = targets[name]
         pred = outputs[name]
         ss_res = ((target - pred) ** 2).sum()
         ss_tot = ((target - target.mean()) ** 2).sum()
-        result[name] = 1.0 if ss_tot.item() == 0.0 else max(0.0, (1.0 - ss_res / ss_tot).item())
+        result[name] = (
+            1.0 if ss_tot.item() == 0.0 else max(0.0, (1.0 - ss_res / ss_tot).item())
+        )
     for name in cls_heads:
         target = targets[name]
         pred = outputs[name]
-        preds = pred.argmax(dim=1) if pred.shape[-1] > 1 else (pred.squeeze(-1) > 0.5).long()
+        preds = (
+            pred.argmax(dim=1)
+            if pred.shape[-1] > 1
+            else (pred.squeeze(-1) > 0.5).long()
+        )
         result[name] = (preds == target).float().mean().item()
     return result
 
 
-def evaluate_accuracy(model: NeuvaModel, dataset):
+def evaluate_accuracy(
+    model: NeuvaModel, dataset: DatasetLike
+) -> Union[float, Dict[str, float]]:
     """Return accuracy as a float, or — for multi-output models — a dict of per-head accuracy."""
     X = getattr(dataset, "X", None)
     y = getattr(dataset, "y", None)
@@ -447,7 +588,7 @@ def evaluate_accuracy(model: NeuvaModel, dataset):
     return correct / len(X)
 
 
-def evaluate(model: NeuvaModel, dataset) -> float:
+def evaluate(model: NeuvaModel, dataset: DatasetLike) -> float:
     """Return accuracy (classification) or R² (regression) on dataset."""
     X = getattr(dataset, "X", None)
     y = getattr(dataset, "y", None)
@@ -476,7 +617,9 @@ def evaluate(model: NeuvaModel, dataset) -> float:
     return max(0.0, (1.0 - ss_res / ss_tot).item())
 
 
-def _predict_labels(model: NeuvaModel, dataset):
+def _predict_labels(
+    model: NeuvaModel, dataset: DatasetLike
+) -> Tuple[List[int], List[int]]:
     """Return (predictions, labels) as plain Python int lists for classification metrics."""
     X = getattr(dataset, "X", None)
     y = getattr(dataset, "y", None)
@@ -494,29 +637,104 @@ def _predict_labels(model: NeuvaModel, dataset):
     if outputs.dim() > 1 and outputs.shape[-1] > 1:
         preds = outputs.argmax(dim=1)
     else:
-        preds = (outputs.squeeze(-1) if outputs.dim() > 1 else outputs)
+        preds = outputs.squeeze(-1) if outputs.dim() > 1 else outputs
         preds = (preds > 0.5).long()
     labels = y.squeeze().long()
     return preds.cpu().tolist(), labels.cpu().tolist()
 
 
-def precision(model: NeuvaModel, dataset) -> list:
+def _argmax_or_threshold(outputs: torch.Tensor) -> List[int]:
+    """Classification-style prediction from a raw forward-pass tensor: argmax across
+    classes for multi-class output, 0.5-threshold for a single (sigmoid/binary) output —
+    the same heuristic `evaluate_accuracy`/`confusion_matrix` already use."""
+    if outputs.dim() > 1 and outputs.shape[-1] > 1:
+        return outputs.argmax(dim=1).cpu().tolist()
+    flat = outputs.squeeze(-1) if outputs.dim() > 1 else outputs
+    return (flat > 0.5).long().cpu().tolist()
+
+
+def run_predict(
+    model: NeuvaModel, dataset: DatasetLike
+) -> Union[List[int], Dict[str, List[int]]]:
+    """Return predicted class labels as a plain Python list (or a dict of lists, one per
+    head, for a multi-output model) — no ground-truth labels required."""
+    X = getattr(dataset, "X", None)
+    if X is None or len(X) == 0:
+        return []
+    model.eval()
+    with torch.no_grad():
+        outputs = model(X)
+    model.train()
+    if isinstance(outputs, dict):
+        return {name: _argmax_or_threshold(t) for name, t in outputs.items()}
+    return _argmax_or_threshold(outputs)
+
+
+def predict_proba(
+    model: NeuvaModel, dataset: DatasetLike
+) -> Union[List[Any], Dict[str, List[Any]]]:
+    """Return the model's raw forward-pass output (softmax/sigmoid probabilities, or
+    whatever activation the model's output layer uses) with no argmax/threshold applied.
+    """
+    X = getattr(dataset, "X", None)
+    if X is None or len(X) == 0:
+        return []
+    model.eval()
+    with torch.no_grad():
+        outputs = model(X)
+    model.train()
+    if isinstance(outputs, dict):
+        return {name: t.cpu().tolist() for name, t in outputs.items()}
+    return outputs.cpu().tolist()
+
+
+def export_onnx(model: NeuvaModel, path: str) -> None:
+    """Export the model to ONNX via torch.onnx.export.
+
+    A synthetic input is built from the first layer's expected input width, which only
+    makes sense for models that start with a dense/conv layer taking a fixed-size tensor.
+    RNN/embedding/multi-output models don't have one well-defined "the" input shape and
+    are not supported here.
+    """
+    if model.output_names:
+        raise ValueError("export_onnx does not support multi-output models yet")
+    if not model.linears:
+        raise ValueError("export_onnx requires a model with at least one layer")
+    first = model.linears[0]
+    if not hasattr(first, "in_features"):
+        raise ValueError(
+            f"export_onnx does not support a model whose first layer is '{type(first).__name__}' "
+            "(no fixed input width) — only dense-first models are supported"
+        )
+    model.eval()
+    dummy_input = torch.randn(1, first.in_features, device=DEVICE)
+    torch.onnx.export(
+        model, dummy_input, path, input_names=["input"], output_names=["output"]
+    )
+    print(f"Model exported to '{path}' (ONNX)")
+
+
+def precision(model: NeuvaModel, dataset: DatasetLike) -> List[float]:
     """Per-class precision."""
     preds, labels = _predict_labels(model, dataset)
     if not preds:
         return []
-    return _skmetrics.precision_score(labels, preds, average=None, zero_division=0).tolist()
+    return _skmetrics.precision_score(
+        labels, preds, average=None, zero_division=0
+    ).tolist()
 
 
-def recall(model: NeuvaModel, dataset) -> list:
+def recall(model: NeuvaModel, dataset: DatasetLike) -> List[float]:
     """Per-class recall."""
     preds, labels = _predict_labels(model, dataset)
     if not preds:
         return []
-    return _skmetrics.recall_score(labels, preds, average=None, zero_division=0).tolist()
+    return _skmetrics.recall_score(
+        labels, preds, average=None, zero_division=0
+    ).tolist()
 
 
-def f1_score(model: NeuvaModel, dataset) -> list:
+def f1_score(model: NeuvaModel, dataset: DatasetLike) -> List[float]:
     """Per-class F1 score."""
     preds, labels = _predict_labels(model, dataset)
     if not preds:
@@ -524,7 +742,7 @@ def f1_score(model: NeuvaModel, dataset) -> list:
     return _skmetrics.f1_score(labels, preds, average=None, zero_division=0).tolist()
 
 
-def confusion_matrix(model: NeuvaModel, dataset) -> list:
+def confusion_matrix(model: NeuvaModel, dataset: DatasetLike) -> List[List[int]]:
     """Print a formatted confusion matrix and return it as a list of lists."""
     preds, labels = _predict_labels(model, dataset)
     if not preds:
@@ -534,7 +752,11 @@ def confusion_matrix(model: NeuvaModel, dataset) -> list:
     n = len(cm)
     col_w = max(4, len(str(cm.max())) + 1)
     header = " " * 6 + "".join(f"P{c}".rjust(col_w) for c in range(n))
-    lines = ["Confusion Matrix (rows=actual, cols=predicted)", header, " " * 6 + "-" * (col_w * n)]
+    lines = [
+        "Confusion Matrix (rows=actual, cols=predicted)",
+        header,
+        " " * 6 + "-" * (col_w * n),
+    ]
     for i, row in enumerate(cm):
         lines.append(f"A{i}".ljust(5) + "|" + "".join(str(v).rjust(col_w) for v in row))
     print("\n".join(lines))
@@ -545,22 +767,40 @@ MODEL_FORMAT_VERSION = "1.1.0"
 
 
 def save_model(model: NeuvaModel, path: str) -> None:
-    torch.save({
-        "architecture": model.layer_specs,
-        "outputs": model.output_specs,
-        "state_dict": model.state_dict(),
-        "version": MODEL_FORMAT_VERSION,
-    }, path)
+    """Save the model's architecture (layer_specs/output_specs) alongside its weights,
+    so `load_model` can rebuild the exact same nn.Module graph rather than guessing
+    an architecture back from tensor shapes."""
+    parent = os.path.dirname(path)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+    torch.save(
+        {
+            "architecture": model.layer_specs,
+            "outputs": model.output_specs,
+            "state_dict": model.state_dict(),
+            "version": MODEL_FORMAT_VERSION,
+        },
+        path,
+    )
     print(f"Model saved to '{path}'")
 
 
 def load_model(path: str) -> NeuvaModel:
+    """Load a model saved by `save_model`, or a legacy checkpoint saved before the
+    `architecture`/`outputs` fields existed — in which case a dense-only architecture
+    is reconstructed by inferring layer sizes from the saved weight tensor shapes
+    (so RNN/conv/etc layers in a legacy checkpoint won't round-trip correctly)."""
     checkpoint = torch.load(path, weights_only=True)
 
     if isinstance(checkpoint, dict) and "architecture" in checkpoint:
-        layers = [LayerStatement(name=name, args=list(args)) for name, args in checkpoint["architecture"]]
+        layers = [
+            LayerStatement(name=name, args=list(args))
+            for name, args in checkpoint["architecture"]
+        ]
         outputs = [
-            OutputLayerStatement(output_name=oname, layer=LayerStatement(name=lname, args=list(args)))
+            OutputLayerStatement(
+                output_name=oname, layer=LayerStatement(name=lname, args=list(args))
+            )
             for oname, lname, args in checkpoint.get("outputs", [])
         ]
         model = NeuvaModel(layers, outputs=outputs)
@@ -573,7 +813,11 @@ def load_model(path: str) -> NeuvaModel:
         layers = [
             LayerStatement(
                 name="dense",
-                args=[state_dict[k].shape[1], state_dict[k].shape[0], activation_names[i] if i < len(activation_names) else "linear"],
+                args=[
+                    state_dict[k].shape[1],
+                    state_dict[k].shape[0],
+                    activation_names[i] if i < len(activation_names) else "linear",
+                ],
             )
             for i, k in enumerate(weight_keys)
         ]

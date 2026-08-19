@@ -1,0 +1,14 @@
+# Neuva stdlib — datasets
+# Common toy/benchmark datasets, ready to use with no CSV file on disk.
+
+fn load_iris() {
+    return __load_iris()
+}
+
+fn load_housing() {
+    return __load_housing()
+}
+
+fn load_mnist_sample() {
+    return __load_mnist_sample()
+}

@@ -1,10 +1,10 @@
 import os
 import torch
 import pandas as pd
-from typing import Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 
-def load_csv(path: str, n_targets: int = 1) -> dict:
+def load_csv(path: str, n_targets: int = 1) -> Dict[str, Any]:
     """Read a CSV and return {"X": tensor, "y": tensor, "columns": list}.
 
     With n_targets=1 (the default), y is a 1D tensor — long dtype when the target
@@ -46,13 +46,13 @@ class DataSet:
         y: Optional[torch.Tensor] = None,
         path: Optional[str] = None,
         n_targets: int = 1,
-    ):
+    ) -> None:
         if path is not None and os.path.isfile(path):
             data = load_csv(path, n_targets=n_targets)
             self.name = os.path.splitext(os.path.basename(path))[0]
             self.X = data["X"]
             self.y = data["y"]
-            self.columns: list = data["columns"]
+            self.columns: List[str] = data["columns"]
         elif path is not None:
             raise FileNotFoundError(f"Data file not found: '{path}'")
         else:
@@ -61,7 +61,7 @@ class DataSet:
             self.y = y
             self.columns = []
 
-    def split(self, ratio: float):
+    def split(self, ratio: float) -> Tuple["DataSet", "DataSet"]:
         """Return (train, test) using a random row permutation; ratio is the train fraction."""
         if self.X is None:
             return DataSet(f"{self.name}_train"), DataSet(f"{self.name}_test")
@@ -75,7 +75,10 @@ class DataSet:
         test.columns = self.columns
         return train, test
 
-    def normalize(self):
+    def normalize(self) -> "DataSet":
+        """Z-score normalize features (and float regression targets, if present) to
+        zero mean/unit variance; a zero-variance feature is left unscaled (divided by 1)
+        instead of producing NaN/inf."""
         if self.X is None:
             return self
         mean = self.X.mean(dim=0)
@@ -85,14 +88,16 @@ class DataSet:
         # Normalize continuous targets (float32) for regression; leave class indices (long) unchanged.
         if self.y is not None and self.y.dtype == torch.float32:
             y_std = self.y.std()
-            y_norm = (self.y - self.y.mean()) / (y_std if y_std.item() != 0 else torch.tensor(1.0))
+            y_norm = (self.y - self.y.mean()) / (
+                y_std if y_std.item() != 0 else torch.tensor(1.0)
+            )
         else:
             y_norm = self.y
         result = DataSet(self.name, X_norm, y_norm)
         result.columns = self.columns
         return result
 
-    def shuffle(self):
+    def shuffle(self) -> "DataSet":
         if self.X is None:
             return self
         idx = torch.randperm(len(self.X))
@@ -100,7 +105,7 @@ class DataSet:
         result.columns = self.columns
         return result
 
-    def augment(self):
+    def augment(self) -> "DataSet":
         """Random horizontal flip + rotation for image-shaped data (dim >= 3);
         falls back to simple noise addition otherwise or if torchvision is missing."""
         if self.X is None:
@@ -110,6 +115,7 @@ class DataSet:
             try:
                 import random
                 import torchvision.transforms.functional as TF
+
                 augmented = []
                 for img in self.X:
                     if random.random() < 0.5:
@@ -125,11 +131,14 @@ class DataSet:
         result.columns = self.columns
         return result
 
-    def _class_indices(self):
+    def _class_indices(self) -> Tuple[Dict[Any, torch.Tensor], torch.Tensor]:
+        """Return ({class_value: row_indices_tensor}, per-class_counts) for `self.y`."""
         classes, counts = torch.unique(self.y, return_counts=True)
-        return {c.item(): (self.y == c).nonzero(as_tuple=True)[0] for c in classes}, counts
+        return {
+            c.item(): (self.y == c).nonzero(as_tuple=True)[0] for c in classes
+        }, counts
 
-    def oversample(self):
+    def oversample(self) -> "DataSet":
         """Duplicate minority-class samples (with replacement) so every class matches
         the majority class's count. No-op for regression targets (non-integer y)."""
         if self.X is None or self.y is None or self.y.dtype != torch.long:
@@ -149,7 +158,7 @@ class DataSet:
         result.columns = self.columns
         return result
 
-    def undersample(self):
+    def undersample(self) -> "DataSet":
         """Randomly drop majority-class samples so every class matches the minority
         class's count. No-op for regression targets (non-integer y)."""
         if self.X is None or self.y is None or self.y.dtype != torch.long:
@@ -171,3 +180,54 @@ class DataSet:
 
     def __repr__(self) -> str:
         return f"DataSet({self.name!r}, {len(self)} rows)"
+
+
+def load_iris_dataset() -> DataSet:
+    """The classic Iris flower dataset (150 rows, 4 features, 3 classes) via sklearn —
+    bundled with scikit-learn, no download required."""
+    from sklearn.datasets import load_iris
+
+    data = load_iris()
+    X = torch.tensor(data.data, dtype=torch.float32)
+    y = torch.tensor(data.target, dtype=torch.long)
+    ds = DataSet(name="iris", X=X, y=y)
+    ds.columns = list(data.feature_names) + ["target"]
+    return ds
+
+
+def load_housing_dataset() -> DataSet:
+    """The California housing regression dataset (20640 rows, 8 features) via sklearn.
+
+    Unlike load_iris/load_mnist_sample, this one is not bundled with scikit-learn — the
+    first call downloads and caches it (~/scikit_learn_data), so it requires network
+    access once.
+    """
+    from sklearn.datasets import fetch_california_housing
+
+    try:
+        data = fetch_california_housing()
+    except Exception as exc:
+        raise RuntimeError(
+            "load_housing() needs to download the California housing dataset "
+            f"(no network access available right now): {exc}"
+        ) from exc
+    X = torch.tensor(data.data, dtype=torch.float32)
+    y = torch.tensor(data.target, dtype=torch.float32)
+    ds = DataSet(name="housing", X=X, y=y)
+    ds.columns = list(data.feature_names) + ["target"]
+    return ds
+
+
+def load_mnist_sample_dataset(n_rows: int = 100) -> DataSet:
+    """A small (n_rows-row) handwritten-digit sample via sklearn's bundled `load_digits`
+    (8x8 images, no download required) — a lightweight offline stand-in for full MNIST
+    (28x28, ~70k rows, not bundled with sklearn)."""
+    from sklearn.datasets import load_digits
+
+    data = load_digits()
+    n_rows = min(n_rows, len(data.data))
+    X = torch.tensor(data.data[:n_rows], dtype=torch.float32)
+    y = torch.tensor(data.target[:n_rows], dtype=torch.long)
+    ds = DataSet(name="mnist_sample", X=X, y=y)
+    ds.columns = [f"pixel{i}" for i in range(X.shape[1])] + ["target"]
+    return ds

@@ -13,7 +13,9 @@ def test_early_stop_parses():
     src = "train M on data for 100 epochs, lr=0.001, loss=mse, early_stop=10\n"
     stmt = NeuvaParser().parse(src).body[0]
     opts = {o.key: o.value for o in stmt.options}
-    assert opts["early_stop"] == 10
+    # lr/early_stop/lr_warmup are now stored as expr nodes (not pre-evaluated numbers)
+    # so a hyperparameter-search loop variable can be used in their place.
+    assert opts["early_stop"].value == 10
 
 
 def test_no_early_stop_defaults_to_none():

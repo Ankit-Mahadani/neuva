@@ -1,0 +1,26 @@
+# Hyperparameter search demo — train a fresh model from scratch for each candidate
+# learning rate and keep the best one. Redefining `model Candidate { ... }` inside the
+# loop gives each candidate a fresh, randomly-initialized model rather than continuing
+# to train the previous candidate's weights.
+
+let data = load("examples/data/iris.csv")
+let train_data, test_data = data.split(0.8)
+
+let best_acc = -1.0
+let best_lr = 0.0
+
+for lr_candidate in [0.001, 0.01, 0.05, 0.1] {
+    model Candidate {
+        layer dense(4 -> 16, relu)
+        layer dense(16 -> 3, softmax)
+    }
+    train Candidate on train_data for 15 epochs, lr = lr_candidate, loss = crossentropy
+    let acc = accuracy(Candidate, test_data)
+    print "lr =", lr_candidate, "-> accuracy:", acc
+    if acc > best_acc {
+        best_acc = acc
+        best_lr = lr_candidate
+    }
+}
+
+print "Best learning rate:", best_lr, "with accuracy:", best_acc

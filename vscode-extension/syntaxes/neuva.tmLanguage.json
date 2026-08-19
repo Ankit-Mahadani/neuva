@@ -4,11 +4,13 @@
   "scopeName": "source.neuva",
   "patterns": [
     { "include": "#comment" },
+    { "include": "#triple-string" },
     { "include": "#string" },
     { "include": "#number" },
     { "include": "#keyword" },
     { "include": "#type" },
     { "include": "#activation" },
+    { "include": "#builtin" },
     { "include": "#arrow" },
     { "include": "#operator" }
   ],
@@ -16,6 +18,11 @@
     "comment": {
       "name": "comment.line.number-sign.neuva",
       "match": "#.*$"
+    },
+    "triple-string": {
+      "name": "string.quoted.triple.neuva",
+      "begin": "\"\"\"",
+      "end": "\"\"\""
     },
     "string": {
       "name": "string.quoted.double.neuva",
@@ -36,11 +43,11 @@
       "patterns": [
         {
           "name": "keyword.control.neuva",
-          "match": "\\b(if|else|for|while|return)\\b"
+          "match": "\\b(if|else|for|while|return|match|case|default|not|and|or)\\b"
         },
         {
           "name": "keyword.other.neuva",
-          "match": "\\b(model|layer|train|save|load|predict|print|let|fn|on|to|epochs|accuracy)\\b"
+          "match": "\\b(model|layer|output|train|save|load|predict|print|let|fn|import|on|to|epochs|lr|loss|lr_schedule|early_stop|lr_warmup|accuracy|in)\\b"
         },
         {
           "name": "constant.language.boolean.neuva",
@@ -54,7 +61,11 @@
     },
     "activation": {
       "name": "support.function.neuva",
-      "match": "\\b(relu|sigmoid|softmax|tanh|linear|gelu|dense|conv|pool|flatten)\\b"
+      "match": "\\b(relu|sigmoid|softmax|tanh|linear|gelu|dense|conv|pool|flatten|dropout|norm|rnn|lstm|embedding|attention|transformer)\\b"
+    },
+    "builtin": {
+      "name": "support.function.builtin.neuva",
+      "match": "\\b(range|len|predict_proba|export_onnx|normalize|shuffle|mse|mae|crossentropy|binary_crossentropy|precision|recall|f1_score|confusion_matrix|table|plot|upper|lower|split|join|strip|replace|abs|sqrt|pow|log|exp|round|min|max|sum|mean)\\b"
     },
     "arrow": {
       "name": "keyword.operator.arrow.neuva",
@@ -62,7 +73,7 @@
     },
     "operator": {
       "name": "keyword.operator.neuva",
-      "match": "[+\\-*/%]|==|!=|<=|>=|[<>]|=|!"
+      "match": "\\+=|-=|\\*=|/=|[+\\-*/%]|==|!=|<=|>=|[<>]|=|!"
     }
   }
 }

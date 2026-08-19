@@ -125,7 +125,9 @@ class ReturnStatement(Node):
 class IfStatement(Node):
     condition: Any = None
     then_body: List[Any] = field(default_factory=list)
-    elif_branches: List[Any] = field(default_factory=list)  # list of (condition, body) tuples
+    elif_branches: List[Any] = field(
+        default_factory=list
+    )  # list of (condition, body) tuples
     else_branch: List[Any] = field(default_factory=list)
 
 
@@ -174,3 +176,29 @@ class Program(Node):
 @dataclass
 class ImportStatement(Node):
     module: str = ""
+
+
+@dataclass
+class AssignStatement(Node):
+    name: str = ""
+    value: Any = None
+
+
+@dataclass
+class AugAssignStatement(Node):
+    name: str = ""
+    op: str = ""
+    value: Any = None
+
+
+@dataclass
+class DictLiteral(Node):
+    keys: List[Any] = field(default_factory=list)
+    values: List[Any] = field(default_factory=list)
+
+
+@dataclass
+class MatchStatement(Node):
+    subject: Any = None
+    cases: List[Any] = field(default_factory=list)  # list of (value_node, stmt) tuples
+    default: Any = None

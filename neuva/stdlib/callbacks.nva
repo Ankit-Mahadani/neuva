@@ -1,0 +1,11 @@
+# Neuva stdlib — callbacks
+# Register functions to be called during the *next* `train` statement. Registrations
+# are consumed by that one training run and then cleared.
+
+fn on_epoch_end(fn) {
+    return __on_epoch_end(fn)
+}
+
+fn on_improvement(fn) {
+    return __on_improvement(fn)
+}

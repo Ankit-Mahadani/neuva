@@ -1,0 +1,24 @@
+# Transfer learning demo — pretrain a model, freeze it (weights stop moving under
+# further training), then unfreeze and fine-tune from where it left off.
+
+let data = load("examples/data/iris.csv")
+let train_data, test_data = data.split(0.8)
+
+model Backbone {
+    layer dense(4 -> 16, relu)
+    layer dense(16 -> 3, softmax)
+}
+
+train Backbone on train_data for 20 epochs, lr = 0.01, loss = crossentropy
+let acc_pretrained = accuracy(Backbone, test_data)
+print "Accuracy after pretraining:", acc_pretrained
+
+Backbone.freeze()
+train Backbone on train_data for 5 epochs, lr = 0.01, loss = crossentropy
+let acc_frozen = accuracy(Backbone, test_data)
+print "Accuracy with frozen weights (training is skipped, unchanged):", acc_frozen
+
+Backbone.unfreeze()
+train Backbone on train_data for 15 epochs, lr = 0.001, loss = crossentropy
+let acc_finetuned = accuracy(Backbone, test_data)
+print "Accuracy after fine-tuning:", acc_finetuned

@@ -1,4 +1,5 @@
 """Neuva — A simple ML programming language."""
+
 import sys as _sys
 
 # Neuva prints Unicode box-drawing/chart characters (model summaries, tables, plots).
@@ -11,4 +12,6 @@ for _stream in (_sys.stdout, _sys.stderr):
         except Exception:
             pass
 
-__version__ = "0.1.0"
+from neuva.version import __version__
+
+__all__ = ["__version__"]
